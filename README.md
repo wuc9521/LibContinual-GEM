@@ -4,9 +4,13 @@ A framework of Continual Learning
 
 * 代码中的LUCIR、LWF的复现样例可以跑通，ICARL的复现样例未跑通
   * 可以参考LUCIR、LWF的复现，去复现GEM
-  * 需要修改的地方：
-    * ./config/xxx.yaml里的data_root文件位置
-    * ./run_trainer.py里main文件的Config
+    * 善用代码搜索功能，对比复现代码和论文代码
+* 跑起来LCL框架需要修改的地方：
+  * ./config/xxx.yaml里的data_root文件位置
+  * ./run_trainer.py里main文件的Config
+* 感想
+  * 看懂GEM的代码流程对复现最重要,分清楚什么时候是训练，什么时候是测试，什么时候是前后向传播。LCL框架并不复杂
+  * 有GEM现成代码后，大部分参数移植到框架里时需要魔改/删除
 
 
 要求的复现环境配置
@@ -71,7 +75,7 @@ A framework of Continual Learning
 
 2. bakcbone模块：'./core/model/backbone' **负责backbone模型文件的定义**(不包含fc)，这里我是参考PyCIL(https://github.com/G-U-N/PyCIL).   建议大家在复现各自方法之前，先检查一下与论文代码中的模型结构是否一致。   <br>
 
-   1. 可能需要修改。需检查
+   1. 都是resnet18，应该不需要修改
 
       > 在深度学习中，通常的网络架构是由 backbone 模型和fc全连接层（或其他类型的层）组成的。backbone 模型用于提取输入数据的特征表示，而fc全连接层则用于将这些特征映射到最终的输出结果。这种组合可以有效地进行特征提取和学习，以解决各种机器学习任务。
       >
@@ -79,7 +83,7 @@ A framework of Continual Learning
 
 3. buffer模块： './core/model/buffer' 负责训练过程中**buffer的管理以及更新**。 目前只实现了LinearBuffer, 在每个任务开始前会把buffer样本与新样本拼接在一起.  buffer的更新策略，目前只支持了随机更新.  其他类型的Buffer以及更新策略后续会逐渐完善.  此外，Buffer的更新函数 def update的参数，大家在实现的时候可以先根据自己的需要随意设置，后续会考虑整合.  <br>
 
-   1. 大概率不需要动
+   1. 论文里没看到buffer，大概率不需要动
 
       > "buffer" 是指用于存储和管理数据样本的缓冲区或缓存区域。它通常用于在训练过程中临时存储训练样本、特征向量、标签或其他相关数据。例如数据加载缓冲区、中间结果缓冲区
 
