@@ -1,0 +1,33 @@
+includes:
+  - headers/data.yaml
+  - headers/device.yaml
+  - headers/model.yaml
+  - headers/optimizer.yaml
+  - backbones/resnet12.yaml
+
+data_root: D:\lesson\机器学习\持续性学习\data_\cifar100
+# data
+task_num: 10
+
+seed: 0
+
+n_layers: 2
+
+n_hiddens: 100
+
+batch_size: 10
+
+log_every: 100
+
+samples_per_task: 2500
+
+lr: 0.1
+
+n_memories: 256
+
+memory_strength: 0.5
+
+
+
+
+
