@@ -13,15 +13,13 @@ save_path: ./
 # data
 init_cls_num: 2
 inc_cls_num: 2
-
+shuffle_tasks: no
 task_num: 10
-
 epoch: 10
-
 val_per_epoch: 10
-
-
 batch_size: 10
+cuda: yes
+samples_per_task: 2500
 
 
 optimizer:
@@ -64,5 +62,4 @@ classifier:
     log_every: 100
     n_layers: 2
     n_hiddens: 100
-    samples_per_task: 2500
     lr: 0.1

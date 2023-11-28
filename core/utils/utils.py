@@ -4,6 +4,8 @@ import torch
 from datetime import datetime
 import numpy as np
 import random
+import time
+from tqdm import tqdm
 from torch.optim.lr_scheduler import _LRScheduler
 
 
@@ -185,3 +187,33 @@ def fmt_date_str(date=None, fmt="%y-%m-%d-%H-%M-%S"):
     if date is None:
         date = datetime.now()
     return date.strftime(fmt)
+
+# added by @wct
+def eval_tasks(model, tasks, cuda):
+    model.eval()
+    result = []
+
+    for i, task in enumerate(tasks):
+        t = i
+        x = task[1]
+        y = task[2]
+        rt = 0
+        
+        eval_bs = x.size(0)
+
+        for b_from in range(0, x.size(0), eval_bs):
+            b_to = min(b_from + eval_bs, x.size(0) - 1)
+            if b_from == b_to:
+                xb = x[b_from].view(1, -1)
+                yb = torch.LongTensor([y[b_to]]).view(1, -1)
+            else:
+                xb = x[b_from:b_to]
+                yb = y[b_from:b_to]
+            if cuda:
+                xb = xb.cuda()
+            _, pb = torch.max(model(xb, t).data.cpu(), 1, keepdim=False)
+            rt += (pb == yb).float().sum()
+
+        result.append(rt / x.size(0))
+
+    return result

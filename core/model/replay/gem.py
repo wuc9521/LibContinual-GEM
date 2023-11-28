@@ -8,77 +8,7 @@ from tqdm import trange
 # from .common import MLP, ResNet18
 from core.model.backbone.resnet import MLP, ResNet18
 from core.data.dataloader import load_datasets
-
-class Continuum:
-    """
-    Continuum类, 用于迭代训练集中的每一个任务.
-
-    Attributes:
-        data: 包含有[训练集, 测试集, 输入的数量, 输出的数量, 训练集大小]的tuple.
-        batch_size: 每个batch的大小.
-        permutation: 一个list, 用于记录每个batch的数据的索引.
-        length: permutation的长度.
-        current: 当前迭代到的位置.
-    """
-    
-    def __init__(self, data, args):
-        self.data = data
-        self.batch_size = args.batch_size  # batch_size 是每次传递给模型的样本数目
-        n_tasks = len(data)
-        task_permutation = range(n_tasks)
-
-        if args.shuffle_tasks == 'yes':
-            task_permutation = torch.randperm(n_tasks).tolist()
-
-        sample_permutations = []
-
-        for t in trange(n_tasks, desc='Tasks', leave=True):
-            N = data[t][1].size(0)
-            if args.samples_per_task <= 0:
-                n = N
-            else:
-                n = min(args.samples_per_task, N)
-
-            p = torch.randperm(N)[0:n]
-            sample_permutations.append(p)
-
-        self.permutation = []
-
-        for t in trange(n_tasks, desc='Tasks Permutation', leave=True):
-            task_t = task_permutation[t]
-            for _ in trange(args.n_epochs, desc='Epochs', leave=False):
-                task_p = [[task_t, i] for i in sample_permutations[task_t]]
-                random.shuffle(task_p)
-                self.permutation += task_p
-
-
-        self.length = len(self.permutation)
-        self.current = 0
-
-    def __iter__(self):
-        return self
-
-    def next(self):
-        return self.__next__()
-
-    def __next__(self):
-        if self.current >= self.length:
-            raise StopIteration
-        else:
-            ti = self.permutation[self.current][0]
-            j = []
-            i = 0
-            while (((self.current + i) < self.length) and
-                   (self.permutation[self.current + i][0] == ti) and
-                   (i < self.batch_size)):
-                j.append(self.permutation[self.current + i][1])
-                i += 1
-            self.current += i
-            j = torch.LongTensor(j)
-            return self.data[ti][1][j], ti, self.data[ti][2][j]
-
         
-
 
 # Auxiliary functions useful for GEM's inner optimization.
 def compute_offsets(task, nc_per_task, is_cifar):
@@ -168,7 +98,6 @@ class GEM(nn.Module):
             log_every, # added by @wct
             n_layers, # added by @wct
             n_hiddens, # added by @wct
-            samples_per_task, # added by @wct
             lr, # added by @wct
             n_inputs, # 输入特征的数量
             n_outputs, # 输出类别的数量

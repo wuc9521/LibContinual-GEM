@@ -87,44 +87,42 @@ class Continuum:
         current: 当前迭代到的位置.
     """
     
-    def __init__(self, data, args):
+    def __init__(
+            self, 
+            data, 
+            # args  # modified by @wct
+            batch_size, # added by @wct
+            shuffle_tasks, # added by @wct
+            samples_per_task, # added by @wct
+            epoch, # added by @wct
+        ):
         self.data = data
-        self.batch_size = args.batch_size  # batch_size 是每次传递给模型的样本数目
+        self.batch_size = batch_size  # batch_size 是每次传递给模型的样本数目
         n_tasks = len(data)
-        task_permutation = range(n_tasks)
-        if args.shuffle_tasks == 'yes':
-            task_permutation = torch.randperm(n_tasks).tolist()
+        task_permutation = torch.randperm(n_tasks).tolist() if shuffle_tasks == 'yes' else range(n_tasks)
 
         sample_permutations = []
 
         for t in trange(n_tasks, desc='Tasks', leave=True):
             N = data[t][1].size(0)
-            if args.samples_per_task <= 0:
-                n = N
-            else:
-                n = min(args.samples_per_task, N)
-
+            n = N if samples_per_task <= 0 else min(samples_per_task, N)
             p = torch.randperm(N)[0:n]
             sample_permutations.append(p)
 
         self.permutation = []
-
         for t in trange(n_tasks, desc='Tasks Permutation', leave=True):
             task_t = task_permutation[t]
-            for _ in trange(args.n_epochs, desc='Epochs', leave=False):
+            for _ in trange(epoch, desc='Epochs', leave=False):
                 task_p = [[task_t, i] for i in sample_permutations[task_t]]
                 random.shuffle(task_p)
                 self.permutation += task_p
 
-
         self.length = len(self.permutation)
         self.current = 0
 
-    def __iter__(self):
-        return self
+    def __iter__(self): return self
 
-    def next(self):
-        return self.__next__()
+    def next(self): return self.__next__()
 
     def __next__(self):
         if self.current >= self.length:
