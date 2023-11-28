@@ -1,9 +1,10 @@
 import os
 import sys
+import uuid
+import time
 import torch
-import importlib
+import datetime
 from torch import nn
-from time import time
 from tqdm import tqdm
 from core.data import get_dataloader
 from core.utils import init_seed, AverageMeter, get_instance, GradualWarmupScheduler, count_parameters
@@ -15,6 +16,7 @@ import numpy as np
 from core.utils import Logger, fmt_date_str, eval_tasks
 from core.data.dataloader import load_datasets
 from core.data.dataset import Continuum
+from core.utils.metrics import confusion_matrix
 
 class Trainer(object):
     """
@@ -195,7 +197,9 @@ class Trainer(object):
             test_loaders (list): Each task's test dataloader.
         '''
         train_loaders = get_dataloader(config, "train")
-        test_loaders = get_dataloader(config, "test", cls_map=train_loaders.cls_map)
+        test_loaders = get_dataloader(config, "test", cls_map=(
+            train_loaders.cls_map if config['classifier']['name'] != "GEM" else None)
+        )
 
         return train_loaders, test_loaders
     
@@ -220,7 +224,15 @@ class Trainer(object):
         """
         if self.config['classifier']['name'] == "GEM": # this "if-else" is added by @wct
             # set up continuum
-            cuda = self.config['cuda'] == "yes"
+            (
+                cuda,
+                results_path,
+                data_file
+            ) = (
+                self.config['cuda'] == "yes",
+                self.config['results_path'],
+                self.config['data_file']
+            )
             continuum = Continuum(
                 self.x_tr, 
                 batch_size=self.config['batch_size'], # added by @wct
@@ -237,15 +249,16 @@ class Trainer(object):
                 model.cuda()
 
             # run model on continuum
-            result_t, result_a, spent_time = life_experience(model, continuum, self.x_te)
+            result_t, result_a, spent_time = life_experience(model, continuum, self.x_te, config=self.config)
 
             # prepare saving path and file name
-            if not os.path.exists(args.save_path):
-                os.makedirs(args.save_path)
-
+            if not os.path.exists(results_path):
+                os.makedirs(results_path)
+            
+            uid = uuid.uuid4().hex    
             fname = os.path.join(
-                args.save_path, 
-                'gem_' + args.data_file + '_' + datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '_' + uid
+                results_path, 
+                'gem_' + data_file + '_' + datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '_' + uid
             )
 
             # save confusion matrix and print one line of stats
@@ -256,8 +269,9 @@ class Trainer(object):
 
             # save all results in binary file
             torch.save((result_t, result_a, model.state_dict(), stats, one_liner, args), fname + '.pt')
+        
         else: 
-            experiment_begin = time()
+            # experiment_begin = time()
             for task_idx in range(self.task_num):
                 print("================Task {} Start!================".format(task_idx))
                 if hasattr(self.model, 'before_task'):

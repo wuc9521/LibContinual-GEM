@@ -95,7 +95,6 @@ class GEM(nn.Module):
             feat_dim, # added by @wct
             memory_strength, # added by @wct
             n_memories, # added by @wct
-            log_every, # added by @wct
             n_layers, # added by @wct
             n_hiddens, # added by @wct
             lr, # added by @wct

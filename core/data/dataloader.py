@@ -4,7 +4,7 @@ from torchvision import transforms
 from .augments import *
 import os
 import numpy as np
-from .dataset import ContinualDatasets
+from .dataset import ContinualDatasets, Continuum
 
 MEAN = [120.39586422 / 255.0, 115.59361427 / 255.0, 104.54012653 / 255.0]
 STD = [70.68188272 / 255.0, 68.27635443 / 255.0, 72.54505529 / 255.0]
@@ -34,7 +34,7 @@ def get_dataloader(config, mode, cls_map=None):
     trfms = transforms.Compose(trfms_list)
 
     if config['classifier']['name'] == "GEM": # added by @wct
-        return 1 
+        return None # added by @wct
     else:
         if cls_map is None:
             cls_list = os.listdir(os.path.join(data_root, mode))
