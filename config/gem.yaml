@@ -59,8 +59,8 @@ backbone:
 classifier:
   name: GEM
   kwargs:
-    num_class: 10
-    feat_dim: 512
+    # num_class: 10
+    # feat_dim: 512
     memory_strength: 0.5
     n_memories: 256
     n_layers: 2

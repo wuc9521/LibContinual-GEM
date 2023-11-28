@@ -13,6 +13,7 @@ import core.model as arch
 from core.model.buffer import *
 from torch.utils.data import DataLoader
 import numpy as np
+from core.model.replay.gem import GEM
 from core.utils import Logger, fmt_date_str, eval_tasks
 from core.data.dataloader import load_datasets
 from core.data.dataset import Continuum
@@ -182,7 +183,7 @@ class Trainer(object):
         print(model)
         print("Trainable params in the model: {}".format(count_parameters(model)))
 
-        model = model.to(self.device)
+        model = model.to(self.device) if config['classifier']['name'] != "GEM" else model
         return model
     
     def _init_dataloader(self, config):
@@ -344,17 +345,11 @@ class Trainer(object):
         with tqdm(total=len(dataloader)) as pbar:
             for batch_idx, batch in enumerate(dataloader):
                 output, acc, loss = self.model.observe(batch)
-
                 self.optimizer.zero_grad()
-
                 loss.backward()
-
                 self.optimizer.step()
                 pbar.update(1)
-                
                 meter.update("acc1", acc)
-
-
         return meter
 
 

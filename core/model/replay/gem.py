@@ -91,8 +91,8 @@ class GEM(nn.Module):
             self, 
             backbone, # added by @wct
             device, # added by @wct
-            num_class, # added by @wct
-            feat_dim, # added by @wct
+            # num_class, # added by @wct
+            # feat_dim, # added by @wct
             memory_strength, # added by @wct
             n_memories, # added by @wct
             n_layers, # added by @wct
@@ -136,15 +136,11 @@ class GEM(nn.Module):
         self.observed_tasks = []
         self.old_task = -1
         self.mem_cnt = 0
-        if self.is_cifar:
-            self.nc_per_task = int(n_outputs / n_tasks)
-        else:
-            self.nc_per_task = n_outputs
+        self.nc_per_task = int(n_outputs / n_tasks) if self.is_cifar else n_outputs
 
     def forward(self, x, t):
         output = self.net(x)
-        if self.is_cifar:
-            # make sure we predict classes within the current task
+        if self.is_cifar: # make sure we predict classes within the current task
             offset1 = int(t * self.nc_per_task)
             offset2 = int((t + 1) * self.nc_per_task)
             if offset1 > 0:
@@ -153,12 +149,7 @@ class GEM(nn.Module):
                 output[:, offset2:self.n_outputs].data.fill_(-10e10)
         return output
 
-    # 根据libcontinual的约定, 这里的observe的参数应该是(self, data)
-    def observe(self, data):
-        x = data['image'] #TODO: @wct 这是copilot自动生成的
-        y = data['label'] #TODO: @wct 这是copilot自动生成的
-        t = data['task_id'] #TODO: @wct 这是copilot自动生成的
-
+    def observe(self, x, t, y):
         # update memory
         if t != self.old_task:
             self.observed_tasks.append(t)
@@ -215,4 +206,3 @@ class GEM(nn.Module):
                 overwrite_grad(self.parameters, self.grads[:, t],
                                self.grad_dims)
         self.opt.step()
-        return 1 #TODO: @wct 这里可能需要添加一个合理的返回值.
