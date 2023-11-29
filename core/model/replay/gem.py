@@ -12,10 +12,6 @@ from core.data.dataloader import load_datasets
 
 # Auxiliary functions useful for GEM's inner optimization.
 def compute_offsets(task, nc_per_task, is_cifar):
-    """
-        Compute offsets for cifar to determine which
-        outputs to select for a given task.
-    """
     if is_cifar:
         offset1 = task * nc_per_task
         offset2 = (task + 1) * nc_per_task
