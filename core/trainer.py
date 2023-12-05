@@ -235,11 +235,8 @@ class Trainer(object):
                 if hasattr(self.model, 'before_task'):
                     self.model.before_task(
                         task_idx, 
-                        self.buffer, 
-                        self.train_loader.get_loader(task_idx), 
-                        self.test_loader.get_loader(task_idx)
                     )
-                    
+
             for (i, (x, task_idx, y)) in enumerate(tqdm(dataloader, desc='Continuum', leave=True)):
                 if(((i % log_every) == 0) or (task_idx != current_task)):
                     result_a.append(eval_tasks(self.model, self.x_te))

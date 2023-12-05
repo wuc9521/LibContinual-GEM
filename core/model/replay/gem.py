@@ -3,10 +3,9 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import quadprog
-from tqdm import trange
 
 # from .common import MLP, ResNet18
-from core.model.backbone.resnet import MLP, ResNet18
+from core.model.backbone.resnet import ResNet18
         
 
 # Auxiliary functions useful for GEM's inner optimization.
@@ -116,6 +115,10 @@ class GEM(nn.Module):
         self.old_task = -1
         self.mem_cnt = 0
         self.nc_per_task = int(n_outputs / task_num)
+
+    def before_task(self, task_idx):
+        # 不如在before_task这个地方把Continuum的数据加载进来
+        pass
 
     def forward(self, x, t):
         output = self.net(x)

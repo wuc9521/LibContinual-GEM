@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn.functional import relu, avg_pool2d
+from core.model.replay.common import Xavier
 
 try:
     from torchvision.models.utils import load_state_dict_from_url

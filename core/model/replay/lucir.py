@@ -138,7 +138,6 @@ class LUCIR(Finetune):
         if self.task_idx == 0:
             loss = self.loss_fn(logit, y)
         else:
-            ref_outputs = self.ref_model(x)
             loss = self.loss_fn1(cur_features, ref_features.detach(), \
                     torch.ones(x.size(0)).to(self.device))
             
