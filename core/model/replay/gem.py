@@ -3,8 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import quadprog
-
-# from .common import MLP, ResNet18
 from core.model.backbone.resnet import ResNet18
         
 
