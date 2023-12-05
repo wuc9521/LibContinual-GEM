@@ -86,6 +86,8 @@ class GEM(nn.Module):
             n_outputs, # 输出类别的数量
             task_num, # 任务的数量: 从设计的角度说, 实际上模型不应该知道任务的数量(?)
         ):
+        print("n_inputs")
+        print(n_inputs)
         super(GEM, self).__init__()
         self.margin = memory_strength
 

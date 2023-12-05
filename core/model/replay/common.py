@@ -12,23 +12,6 @@ def Xavier(m):
         m.bias.data.fill_(0.0)
 
 
-class MLP(nn.Module): # 多层感知机
-    def __init__(self, sizes):
-        super(MLP, self).__init__()
-        layers = []
-
-        for i in range(0, len(sizes) - 1):
-            layers.append(nn.Linear(sizes[i], sizes[i + 1]))
-            if i < (len(sizes) - 2):
-                layers.append(nn.ReLU())
-
-        self.net = nn.Sequential(*layers)
-        self.net.apply(Xavier)
-
-    def forward(self, x):
-        return self.net(x)
-
-
 def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
 

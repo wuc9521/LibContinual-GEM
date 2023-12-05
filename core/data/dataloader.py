@@ -87,10 +87,10 @@ def load_datasets(config):
         tasks_te.append([(c1, c2), x_te[i_te].clone(), y_te[i_te].clone()])
 
 
-    d_tr = tasks_tr
-    d_te = tasks_te
-    n_inputs = d_tr[0][1].size(1)
-    n_outputs = 0
+    d_tr = tasks_tr # 用于训练的数据集
+    d_te = tasks_te # 用于测试的数据集
+    n_inputs = d_tr[0][1].size(1) # 输入特征的数量
+    n_outputs = 0 # 输出类别的数量
     for i in range(len(d_tr)):
         n_outputs = max(n_outputs, d_tr[i][2].max().item())
         n_outputs = max(n_outputs, d_te[i][2].max().item())

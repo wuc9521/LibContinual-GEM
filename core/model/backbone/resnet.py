@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.nn.functional import relu, avg_pool2d
-from core.model.replay.common import Xavier
 
 try:
     from torchvision.models.utils import load_state_dict_from_url
@@ -334,20 +333,3 @@ class ResNet4GEM(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
-
-# added by @wct
-class MLP(nn.Module): # 多层感知机
-    def __init__(self, sizes):
-        super(MLP, self).__init__()
-        layers = []
-
-        for i in range(0, len(sizes) - 1):
-            layers.append(nn.Linear(sizes[i], sizes[i + 1]))
-            if i < (len(sizes) - 2):
-                layers.append(nn.ReLU())
-
-        self.net = nn.Sequential(*layers)
-        self.net.apply(Xavier)
-
-    def forward(self, x):
-        return self.net(x)

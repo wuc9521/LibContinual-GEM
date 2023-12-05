@@ -169,8 +169,7 @@ class Trainer(object):
         print(model)
         print("Trainable params in the model: {}".format(count_parameters(model)))
 
-        model = model.to(self.device) if config['classifier']['name'] != "GEM" else model
-        return model
+        return model.to(self.device) if config['classifier']['name'] != "GEM" else model # added by @wct
     
     def _init_dataloader(self, config):
         '''
