@@ -1,11 +1,6 @@
 import os
 import sys
-import uuid
-import time
 import torch
-import datetime
-from torch import nn
-import torch.optim as optim
 from tqdm import tqdm
 from core.data import get_dataloader
 from core.utils import init_seed, AverageMeter, get_instance, GradualWarmupScheduler, count_parameters
@@ -14,12 +9,10 @@ import core.model as arch
 from core.model.buffer import *
 from torch.utils.data import DataLoader
 import numpy as np
-from core.model.replay.gem import GEM
 from core.model.buffer import LinearBuffer, hearding_update, random_update
 from core.utils import Logger, fmt_date_str, eval_tasks
 from core.data.dataloader import load_datasets
 from core.data.dataset import Continuum
-from core.utils.metrics import confusion_matrix
 
 class Trainer(object):
     """
@@ -237,8 +230,17 @@ class Trainer(object):
             log_every = self.config['log_every']
             current_task = 0
 
+            for task_idx in range(self.task_num):
+                print("================Task {} Start!================".format(task_idx))
+                if hasattr(self.model, 'before_task'):
+                    self.model.before_task(
+                        task_idx, 
+                        self.buffer, 
+                        self.train_loader.get_loader(task_idx), 
+                        self.test_loader.get_loader(task_idx)
+                    )
+                    
             for (i, (x, task_idx, y)) in enumerate(tqdm(dataloader, desc='Continuum', leave=True)):
-                # print("i: {}, task_idx: {}".format(i, task_idx))
                 if(((i % log_every) == 0) or (task_idx != current_task)):
                     result_a.append(eval_tasks(self.model, self.x_te))
                     result_t.append(current_task)

@@ -1,11 +1,9 @@
 from torch.utils.data import Dataset
 import torch
 import PIL
-import numpy as np
 import os
 import random
 from torch.utils.data import DataLoader
-from tqdm import trange
 
 
 
@@ -72,20 +70,8 @@ class SingleDataset(Dataset):
     
 
 class Continuum:
-    """
-    Continuum类, 用于迭代训练集中的每一个任务.
-
-    Attributes:
-        data: 包含有[训练集, 测试集, 输入的数量, 输出的数量, 训练集大小]的tuple.
-        batch_size: 每个batch的大小.
-        permutation: 一个list, 用于记录每个batch的数据的索引.
-        length: permutation的长度.
-        current: 当前迭代到的位置.
-    """
-    
     def __init__(
-            self, 
-            data, 
+            self, data, 
             batch_size, # added by @wct
             samples_per_task, # added by @wct
             epoch, # added by @wct
@@ -94,20 +80,20 @@ class Continuum:
         self.data = data
         self.batch_size = batch_size  # batch_size 是每次传递给模型的样本数目
 
-        sample_permutations = []
+        sample_permutations = [] # 生成任务数据的随机排列
 
-        for task_idx in trange(task_num, desc='Tasks', leave=True):
+        for task_idx in range(task_num):
             N = data[task_idx][1].size(0)
             n = N if samples_per_task <= 0 else min(samples_per_task, N)
             p = torch.randperm(N)[0:n]
             sample_permutations.append(p)
 
+        # sample_permulations 总共有10个任务，每个任务是一个长度为 2500 的随机排列
         self.permutation = []
-        for task_idx in trange(task_num, desc='Tasks Permutation', leave=True):
-            task_t = range(task_num)[task_idx]
-            for _ in trange(epoch, desc='Epochs', leave=False):
-                task_p = [[task_t, i] for i in sample_permutations[task_t]]
-                random.shuffle(task_p)
+        for task_idx in range(task_num): # 10
+            for _ in range(epoch): # 10
+                task_p = [[task_idx, i] for i in sample_permutations[task_idx]] # 2500
+                random.shuffle(task_p) # 随机打乱列表的元素顺序
                 self.permutation += task_p
 
         self.length = len(self.permutation)
@@ -124,9 +110,11 @@ class Continuum:
             ti = self.permutation[self.current][0]
             j = []
             i = 0
-            while (((self.current + i) < self.length) and
-                   (self.permutation[self.current + i][0] == ti) and
-                   (i < self.batch_size)):
+            while (
+                ((self.current + i) < self.length) and
+                (self.permutation[self.current + i][0] == ti) and
+                (i < self.batch_size)
+            ):
                 j.append(self.permutation[self.current + i][1])
                 i += 1
             self.current += i

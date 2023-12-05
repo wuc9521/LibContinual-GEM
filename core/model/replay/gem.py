@@ -100,8 +100,8 @@ class GEM(nn.Module):
         self.gpu = True
 
         # allocate episodic memory
-        self.memory_data = torch.FloatTensor(task_num, self.n_memories, n_inputs)
-        self.memory_labs = torch.LongTensor(task_num, self.n_memories)
+        self.memory_data = torch.FloatTensor(task_num, self.n_memories, n_inputs) # 作为buffer, 存储样本
+        self.memory_labs = torch.LongTensor(task_num, self.n_memories) # 作为buffer, 存储标签
         self.memory_data = self.memory_data.cuda() # modified by @wct
         self.memory_labs = self.memory_labs.cuda() # modified by @wct
 
