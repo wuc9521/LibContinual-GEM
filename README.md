@@ -1,158 +1,62 @@
-# LibContinual-GEM
-Coursework (GEM, LCL8) of Introduction to Machine Learning, Software Institute, Nanjng University
+# 代码结构
+1. data模块：'./core/data' 负责dataset的读取逻辑，关于datasets所需要的transform暂时没有写好，大家在复现各自方法的时候，需要什么transform可以直接修改./core/data/dataloader.py，后续会逐渐完善. <br>
 
-# notes
-> 比较混乱, 把能想到的先全都记下来.
+2. bakcbone模块：'./core/model/backbone' 负责backbone模型文件的定义(不包含fc)，这里我是参考PyCIL(https://github.com/G-U-N/PyCIL).   建议大家在复现各自方法之前，先检查一下与论文代码中的模型结构是否一致。   <br>
 
-finetune都是false, 所以这里忽略finetune
+3. buffer模块： './core/model/buffer' 负责训练过程中buffer的管理以及更新。 目前只实现了LinearBuffer, 在每个任务开始前会把buffer样本与新样本拼接在一起.  buffer的更新策略，目前只支持了随机更新.  其他类型的Buffer以及更新策略后续会逐渐完善.  此外，Buffer的更新函数 def update的参数，大家在实现的时候可以先根据自己的需要随意设置，后续会考虑整合.  <br>
 
-# records
-## 202311271644
-```shell
-(base) *[main][~/work/LibContinual-GEM]$ python3 ./run_trainer.py
-/home/featurize/work/LibContinual-GEM/core/model/backbone/__init__.py:16: SyntaxWarning: str indices must be integers or slices, not str; perhaps you missed a comma?
-  emb_func = eval(config["backbone"['name']])(**kwargs)
-{'data_root': '/home/featurize/work/data/cifar10', 'image_size': 32, 'pin_memory': False, 'augment': True, 'workers': 8, 'device_ids': 0, 'n_gpu': 1, 'seed': 1993, 'deterministic': True, 'epoch': 10, 'batch_size': 128, 'val_per_epoch': 10, 'optimzer': {'name': 'SGD', 'kwargs': {'lr': 0.1}}, 'lr_scheduler': {'name': 'StepLR', 'kwargs': {'gamma': 0.5, 'step_size': 10}}, 'warmup': 3, 'includes': ['headers/data.yaml', 'headers/device.yaml', 'headers/model.yaml', 'headers/optimizer.yaml', 'backbones/resnet12.yaml'], 'save_path': './', 'init_cls_num': 2, 'inc_cls_num': 2, 'task_num': 5, 'optimizer': {'name': 'SGD', 'kwargs': {'lr': 0.1}}, 'backbone': {'name': 'resnet18', 'kwargs': {'num_classes': 10, 'args': {'dataset': 'cifar10'}}}, 'buffer': {'name': 'LinearBuffer', 'kwargs': {'buffer_size': 500, 'batch_size': 32, 'strategy': 'random'}}, 'classifier': {'name': 'LUCIR', 'kwargs': {'num_class': 10, 'feat_dim': 512, 'init_cls_num': 2, 'inc_cls_num': 2, 'dist': 0.5, 'lamda': 10, 'K': 2, 'lw_mr': 1}}, 'rank': 0}
-LUCIR(
-  (backbone): ResNet(
-    (conv1): Sequential(
-      (0): Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-      (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      (2): ReLU(inplace=True)
-    )
-    (layer1): Sequential(
-      (0): BasicBlock(
-        (conv1): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        (relu): ReLU(inplace=True)
-        (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn2): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      )
-      (1): BasicBlock(
-        (conv1): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        (relu): ReLU(inplace=True)
-        (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn2): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      )
-    )
-    (layer2): Sequential(
-      (0): BasicBlock(
-        (conv1): Conv2d(64, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
-        (bn1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        (relu): ReLU(inplace=True)
-        (conv2): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn2): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        (downsample): Sequential(
-          (0): Conv2d(64, 128, kernel_size=(1, 1), stride=(2, 2), bias=False)
-          (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        )
-      )
-      (1): BasicBlock(
-        (conv1): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        (relu): ReLU(inplace=True)
-        (conv2): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn2): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      )
-    )
-    (layer3): Sequential(
-      (0): BasicBlock(
-        (conv1): Conv2d(128, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
-        (bn1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        (relu): ReLU(inplace=True)
-        (conv2): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn2): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        (downsample): Sequential(
-          (0): Conv2d(128, 256, kernel_size=(1, 1), stride=(2, 2), bias=False)
-          (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        )
-      )
-      (1): BasicBlock(
-        (conv1): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        (relu): ReLU(inplace=True)
-        (conv2): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn2): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      )
-    )
-    (layer4): Sequential(
-      (0): BasicBlock(
-        (conv1): Conv2d(256, 512, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
-        (bn1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        (relu): ReLU(inplace=True)
-        (conv2): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn2): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        (downsample): Sequential(
-          (0): Conv2d(256, 512, kernel_size=(1, 1), stride=(2, 2), bias=False)
-          (1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        )
-      )
-      (1): BasicBlock(
-        (conv1): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn1): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        (relu): ReLU(inplace=True)
-        (conv2): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        (bn2): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      )
-    )
-    (avgpool): AdaptiveAvgPool2d(output_size=(1, 1))
-  )
-  (classifier): CosineLinear()
-  (loss_fn): CrossEntropyLoss()
-)
-Trainable params in the model: 11169857
-SGD (
-Parameter Group 0
-    dampening: 0
-    differentiable: False
-    foreach: None
-    initial_lr: 0.1
-    lr: 0.03333333333333333
-    maximize: False
-    momentum: 0
-    nesterov: False
-    weight_decay: 0
-)
-================Task 0 Start!================
-SGD (
-Parameter Group 0
-    dampening: 0
-    differentiable: False
-    foreach: None
-    initial_lr: 0.1
-    lr: 0.03333333333333333
-    maximize: False
-    momentum: 0
-    nesterov: False
-    weight_decay: 0
-)
-================Task 0 Training!================
-The training samples number: 10000
-learning rate: [0.03333333333333333]
-================ Train on the train set ================
-  4%|█████▊                                                                                                                                    | 13/312 [00:17<05:45,  1.16s/it]  4%|█████▊                                                                                                                                    | 13/312 [00:18<06:57,  1.40s/it]
-Traceback (most recent call last):
-  File "/home/featurize/work/LibContinual-GEM/./run_trainer.py", line 23, in <module>
-    main(0, config)
-  File "/home/featurize/work/LibContinual-GEM/./run_trainer.py", line 14, in main
-    trainer.train_loop()
-  File "/home/featurize/work/LibContinual-GEM/core/trainer.py", line 251, in train_loop
-    train_meter = self._train(epoch_idx, dataloader)
-  File "/home/featurize/work/LibContinual-GEM/core/trainer.py", line 289, in _train
-    for batch_idx, batch in enumerate(dataloader):
-  File "/environment/miniconda3/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 633, in __next__
-    data = self._next_data()
-  File "/environment/miniconda3/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 677, in _next_data
-    data = self._dataset_fetcher.fetch(index)  # may raise StopIteration
-  File "/environment/miniconda3/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 51, in fetch
-    data = [self.dataset[idx] for idx in possibly_batched_index]
-  File "/environment/miniconda3/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 51, in <listcomp>
-    data = [self.dataset[idx] for idx in possibly_batched_index]
-  File "/home/featurize/work/LibContinual-GEM/core/data/dataset.py", line 57, in __getitem__
-    image = PIL.Image.open(os.path.join(self.data_root, self.mode, img_path)).convert("RGB")
-  File "/environment/miniconda3/lib/python3.10/site-packages/PIL/Image.py", line 3140, in open
-    prefix = fp.read(16)
-KeyboardInterrupt
+4. logger模块：'./core/utils/logger.py' 负责训练过程中的日志打印。 此处选择直接hack 系统输出，因此大家在训练过程中不需要显示的调用logger.info等接口，  直接正常的print想要的信息，logger模块会自动的保存在日志文件中.  <br>
 
-```
+5. trainer模块：'./core/trainer.py' 负责整个实验的流程控制。 大家在复现各自方法的时候，如果流程上有暂时支持不了的，可以直接修改trainer.py来满足，并且可以反馈给我，后续我会对流程做进一步的完善.  <br>
+
+6. config模块：'./config/', 负责整个训练过程的参数配置。
+   入口：run_trainer.py里的line：15填入各自方法对应的yaml配置文件路径。 为每个方法在./config/路径下新建一个*.yaml。 配置文件里面需要写入以下参数： <br>
+   a/  includes:  仿照finetune.yaml照抄，用来填充一些默认的参数。   *.yaml里的参数会覆盖掉config/headers/里的参数  <br>
+   b/  data_root: 所使用的数据集路径。数据集的摆放格式如下：
+         data_root:  <br>
+         | ---train  <br>
+         | ------class1   <br>
+         | ----------img1.jpg  <br>
+         | ----------img2.jpg  <br>
+         | ------class2  <br>
+         | ----------img1.jpg  <br>
+         | ----------img2.jpg  <br>
+         | ------class3  <br>
+         | ----------img1.jpg  <br>
+         | ----------img2.jpg  <br>
+         | ---test  <br>
+         | ------class1  <br>
+         | ----------img1.jpg  <br>
+         | ----------img2.jpg  <br>
+         | ------class2  <br>
+         | ----------img1.jpg  <br>
+         | ----------img2.jpg  <br>
+         | ------class3  <br>
+         | ----------img1.jpg  <br>
+         | ----------img2.jpg  <br>
+
+   c/ save_path: log以及checkpoints存放路径，log文件存放在 save_path/xxx.log,  checkpoint保存功能还未完成.  <br>
+
+   d/ init_cls_num, inc_cls_num, task_num: 第一个任务的类别个数、后续每个任务的类别个数、任务总数. 类别顺序是随机生成的 <br>
+
+   e/ init_epoch, epoch:  第一个任务的训练epoch数、后续每个任务的训练epoch数，没设置init_epoch的情况下init_epoch = epoch  <br>
+
+   f/ backbone:  参考finetune.yaml, 一般指明name即可， 其中args:datasets 是代码遗留问题，暂时先照抄，后续会修改掉.   <br>
+
+   g/ optimizer, lr_scheduler:  可以仿照大家平常使用pytorch自带的optimizer与scheduler, 将名字与相应参数，仿照finetune.yaml的形式填入即可.   <br>
+
+   h/ buffer:  与训练过程中使用的buffer相关，目前buffer的使用只支持将旧样本与新样本拼接在一起。buffer_size, batch_size, strategy： 旧样本数量，batch_size在linearBuffer下没用，strategy更新策略。
+
+   i: classifier: name:对应各自实现的方法名，其他参数看各自需要什么，直接在里面加
+
+
+# 复现需要做的事
+1. 选定好一个方法后，在./config路径下新增一个.yaml文件用来满足需要的参数设置. 在./model/replay 或者 ./model/下新增一个.py文件用来实现训练算法.   <br>
+
+2. 对于.py文件，需要实现几个函数: <br>
+  def __init__():  用来初始化各自算法需要的对象
+  def observe(self, data):  训练过程中，面对到来的一个batch的样本完成训练的损失计算以及参数更新，返回pred, acc, loss:  预测结果，准确率，损失    <br>
+  def inference(self, data):   推理过程中，面对到来的一个batch的样本，完成预测，返回pred, acc   <br>
+  def before_task() / after_task():  可选，如果算法在每个任务开始前后有额外的操作，在这两个函数内完成   <br>
+
+3. 训练过程中需要不同的buffer以及更新策略，可以自己在'./cire/model/buffer'下仿照LinearBuffer新增文件，并反馈给我.

@@ -64,7 +64,7 @@ def load_datasets(config):
     cifar100_train = unpickle(os.path.join(data_root, "train"))
     cifar100_test = unpickle(os.path.join(data_root, "test"))
 
-    x_tr = torch.from_numpy(cifar100_train[b'data'])
+    x_tr = torch.from_numpy(cifar100_train[b'data']) #训练集
     y_tr = torch.LongTensor(cifar100_train[b'fine_labels'])
     x_te = torch.from_numpy(cifar100_test[b'data'])
     y_te = torch.LongTensor(cifar100_test[b'fine_labels'])

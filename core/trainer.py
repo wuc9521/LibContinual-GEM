@@ -162,7 +162,7 @@ class Trainer(object):
             self.x_te,
             n_inputs, # 输入特征的数量
             n_outputs, # 输出类别的数量
-        ) = load_datasets(config)
+        ) = load_datasets(config) if config['classifier']['name'] == "GEM" else (None, None, None, None)
         # @wct: 这里写的很丑, 后面改
 
         dic = {
@@ -222,7 +222,7 @@ class Trainer(object):
         """
         if self.config['classifier']['name'] == "GEM": # this "if-else" is added by @wct
             # set up continuum
-            continuum = Continuum(
+            dataloader = Continuum(
                 self.x_tr, 
                 batch_size=self.config['batch_size'], # added by @wct
                 samples_per_task=self.config['samples_per_task'], # added by @wct
@@ -237,9 +237,10 @@ class Trainer(object):
             log_every = self.config['log_every']
             current_task = 0
 
-            for (i, (x, task_idx, y)) in enumerate(tqdm(continuum, desc='Continuum', leave=True)):
+            for (i, (x, task_idx, y)) in enumerate(tqdm(dataloader, desc='Continuum', leave=True)):
+                # print("i: {}, task_idx: {}".format(i, task_idx))
                 if(((i % log_every) == 0) or (task_idx != current_task)):
-                    result_a.append(eval_tasks(self.model, self.x_te, cuda=True))
+                    result_a.append(eval_tasks(self.model, self.x_te))
                     result_t.append(current_task)
                     current_task = task_idx
 
@@ -249,7 +250,7 @@ class Trainer(object):
                 self.model.train()
                 self.model.observe(v_x, task_idx, v_y)
 
-            result_a.append(eval_tasks(self.model, self.x_te, cuda=True))
+            result_a.append(eval_tasks(self.model, self.x_te))
             result_t.append(current_task)
 
             (result_t, result_a) = (torch.Tensor(result_t), torch.Tensor(result_a))

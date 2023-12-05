@@ -84,16 +84,12 @@ class GEM(nn.Module):
             device, # added by @wct
             memory_strength, # added by @wct
             n_memories, # added by @wct
-            n_layers, # added by @wct
-            n_hiddens, # added by @wct
             lr, # added by @wct
             n_inputs, # 输入特征的数量
             n_outputs, # 输出类别的数量
-            task_num, # 任务的数量: 实际上模型不应该知道任务的数量(?)
+            task_num, # 任务的数量: 从设计的角度说, 实际上模型不应该知道任务的数量(?)
         ):
         super(GEM, self).__init__()
-        nl = n_layers
-        nh = n_hiddens
         self.margin = memory_strength
 
         self.net = ResNet18(n_outputs)
@@ -113,15 +109,14 @@ class GEM(nn.Module):
         self.grad_dims = []
         for param in self.parameters():
             self.grad_dims.append(param.data.numel())
-        self.grads = torch.Tensor(sum(self.grad_dims), task_num)
-        # if args.cuda:
-        self.grads = self.grads.cuda() # modified by @wct
+        self.grads = torch.Tensor(sum(self.grad_dims), task_num).cuda() # modified by @wct
 
         # allocate counters
         self.observed_tasks = []
         self.old_task = -1
         self.mem_cnt = 0
         self.nc_per_task = int(n_outputs / task_num)
+
     def forward(self, x, t):
         output = self.net(x)
         offset1 = int(t * self.nc_per_task)
@@ -132,22 +127,22 @@ class GEM(nn.Module):
             output[:, offset2:self.n_outputs].data.fill_(-10e10)
         return output
 
-    def observe(self, x, t, y):
+    def observe(self, x, task_idx, y):
         # update memory
-        if t != self.old_task:
-            self.observed_tasks.append(t)
-            self.old_task = t
+        if task_idx != self.old_task:
+            self.observed_tasks.append(task_idx)
+            self.old_task = task_idx
 
         # Update ring buffer storing examples from current task
         bsz = y.data.size(0)
         endcnt = min(self.mem_cnt + bsz, self.n_memories)
         effbsz = endcnt - self.mem_cnt
-        self.memory_data[t, self.mem_cnt: endcnt].copy_(
+        self.memory_data[task_idx, self.mem_cnt: endcnt].copy_(
             x.data[: effbsz])
         if bsz == 1:
-            self.memory_labs[t, self.mem_cnt] = y.data[0]
+            self.memory_labs[task_idx, self.mem_cnt] = y.data[0]
         else:
-            self.memory_labs[t, self.mem_cnt: endcnt].copy_(y.data[: effbsz])
+            self.memory_labs[task_idx, self.mem_cnt: endcnt].copy_(y.data[: effbsz])
         self.mem_cnt += effbsz
         if self.mem_cnt == self.n_memories:
             self.mem_cnt = 0
@@ -173,22 +168,22 @@ class GEM(nn.Module):
         # now compute the grad on the current minibatch
         self.zero_grad()
 
-        offset1, offset2 = compute_offsets(t, self.nc_per_task)
-        loss = self.ce(self.forward(x, t)[:, offset1: offset2], y - offset1)
+        offset1, offset2 = compute_offsets(task_idx, self.nc_per_task)
+        loss = self.ce(self.forward(x, task_idx)[:, offset1: offset2], y - offset1)
         loss.backward()
 
         # check if gradient violates constraints
         if len(self.observed_tasks) > 1:
             # copy gradient
-            store_grad(self.parameters, self.grads, self.grad_dims, t)
+            store_grad(self.parameters, self.grads, self.grad_dims, task_idx)
             indx = torch.cuda.LongTensor(self.observed_tasks[:-1]) if self.gpu \
                 else torch.LongTensor(self.observed_tasks[:-1])
-            dotp = torch.mm(self.grads[:, t].unsqueeze(0),
+            dotp = torch.mm(self.grads[:, task_idx].unsqueeze(0),
                             self.grads.index_select(1, indx))
             if (dotp < 0).sum() != 0:
-                project2cone2(self.grads[:, t].unsqueeze(1),
+                project2cone2(self.grads[:, task_idx].unsqueeze(1),
                               self.grads.index_select(1, indx), self.margin)
                 # copy gradients back
-                overwrite_grad(self.parameters, self.grads[:, t],
+                overwrite_grad(self.parameters, self.grads[:, task_idx],
                                self.grad_dims)
         self.opt.step()

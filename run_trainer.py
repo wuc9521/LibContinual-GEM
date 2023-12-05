@@ -16,6 +16,7 @@ def main(rank, config):
 
 if __name__ == "__main__":
     config = Config("./config/gem.yaml").get_config_dict()
+    # config = Config("./config/lucir.yaml").get_config_dict()
     if config["n_gpu"] > 1:
         pass
         os.environ["CUDA_VISIBLE_DEVICES"] = config["device_ids"]

@@ -189,7 +189,18 @@ def fmt_date_str(date=None, fmt="%y-%m-%d-%H-%M-%S"):
     return date.strftime(fmt)
 
 # added by @wct
-def eval_tasks(model, tasks, cuda):
+def eval_tasks(model, tasks):
+    """
+    对模型在给定任务集上进行评估。
+
+    Args:
+        model: 要评估的模型。
+        tasks: 包含任务信息的列表。每个任务由一个元组 (x, task_idx, y) 表示，其中 task_idx 是任务的标识，
+               x 是输入数据, y 是对应的标签.
+
+    Returns:
+        一个包含每个任务的准确率 (accuracy) 的列表.
+    """
     model.eval()
     result = []
 
@@ -209,8 +220,7 @@ def eval_tasks(model, tasks, cuda):
             else:
                 xb = x[b_from:b_to]
                 yb = y[b_from:b_to]
-            if cuda:
-                xb = xb.cuda()
+            xb = xb.cuda()
             _, pb = torch.max(model(xb, t).data.cpu(), 1, keepdim=False)
             rt += (pb == yb).float().sum()
 
