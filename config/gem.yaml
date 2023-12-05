@@ -14,7 +14,6 @@ results_path: results/
 # data
 init_cls_num: 2
 inc_cls_num: 2
-shuffle_tasks: no
 task_num: 10 
 epoch: 10
 val_per_epoch: 10

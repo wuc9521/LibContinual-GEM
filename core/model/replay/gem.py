@@ -7,17 +7,12 @@ from tqdm import trange
 
 # from .common import MLP, ResNet18
 from core.model.backbone.resnet import MLP, ResNet18
-from core.data.dataloader import load_datasets
         
 
 # Auxiliary functions useful for GEM's inner optimization.
-def compute_offsets(task, nc_per_task, is_cifar):
-    if is_cifar:
-        offset1 = task * nc_per_task
-        offset2 = (task + 1) * nc_per_task
-    else:
-        offset1 = 0
-        offset2 = nc_per_task
+def compute_offsets(task, nc_per_task):
+    offset1 = task * nc_per_task
+    offset2 = (task + 1) * nc_per_task
     return offset1, offset2
 
 
@@ -94,16 +89,14 @@ class GEM(nn.Module):
             lr, # added by @wct
             n_inputs, # 输入特征的数量
             n_outputs, # 输出类别的数量
-            task_num, # 任务的数量
+            task_num, # 任务的数量: 实际上模型不应该知道任务的数量(?)
         ):
         super(GEM, self).__init__()
         nl = n_layers
         nh = n_hiddens
         self.margin = memory_strength
-        # self.is_cifar = (data_file == 'cifar100.pt')
-        self.is_cifar = True # modified by @wct
 
-        self.net = ResNet18(n_outputs) if self.is_cifar else MLP([n_inputs] + [nh] * nl + [n_outputs])
+        self.net = ResNet18(n_outputs)
         self.ce = nn.CrossEntropyLoss()
         self.n_outputs = n_outputs
         self.opt = optim.SGD(self.parameters(), lr)
@@ -113,7 +106,6 @@ class GEM(nn.Module):
         # allocate episodic memory
         self.memory_data = torch.FloatTensor(task_num, self.n_memories, n_inputs)
         self.memory_labs = torch.LongTensor(task_num, self.n_memories)
-        # if cuda:
         self.memory_data = self.memory_data.cuda() # modified by @wct
         self.memory_labs = self.memory_labs.cuda() # modified by @wct
 
@@ -129,17 +121,15 @@ class GEM(nn.Module):
         self.observed_tasks = []
         self.old_task = -1
         self.mem_cnt = 0
-        self.nc_per_task = int(n_outputs / task_num) if self.is_cifar else n_outputs
-
+        self.nc_per_task = int(n_outputs / task_num)
     def forward(self, x, t):
         output = self.net(x)
-        if self.is_cifar: # make sure we predict classes within the current task
-            offset1 = int(t * self.nc_per_task)
-            offset2 = int((t + 1) * self.nc_per_task)
-            if offset1 > 0:
-                output[:, :offset1].data.fill_(-10e10)
-            if offset2 < self.n_outputs:
-                output[:, offset2:self.n_outputs].data.fill_(-10e10)
+        offset1 = int(t * self.nc_per_task)
+        offset2 = int((t + 1) * self.nc_per_task)
+        if offset1 > 0:
+            output[:, :offset1].data.fill_(-10e10)
+        if offset2 < self.n_outputs:
+            output[:, offset2:self.n_outputs].data.fill_(-10e10)
         return output
 
     def observe(self, x, t, y):
@@ -168,7 +158,10 @@ class GEM(nn.Module):
                 self.zero_grad() # fwd/bwd on the examples in the memory
                 past_task = self.observed_tasks[tt]
 
-                offset1, offset2 = compute_offsets(past_task, self.nc_per_task, self.is_cifar)
+                offset1, offset2 = compute_offsets(
+                    past_task, 
+                    self.nc_per_task
+                )
                 ptloss = self.ce(
                     self.forward(
                         self.memory_data[past_task],
@@ -180,7 +173,7 @@ class GEM(nn.Module):
         # now compute the grad on the current minibatch
         self.zero_grad()
 
-        offset1, offset2 = compute_offsets(t, self.nc_per_task, self.is_cifar)
+        offset1, offset2 = compute_offsets(t, self.nc_per_task)
         loss = self.ce(self.forward(x, t)[:, offset1: offset2], y - offset1)
         loss.backward()
 

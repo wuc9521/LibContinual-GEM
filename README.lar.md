@@ -43,17 +43,17 @@ A framework of Continual Learning
 
 3. 训练实现：对于.py文件，需要实现几个函数: <br>
 
-   1. def \__init__():  用来**初始化各自算法需要的对象**
+   1. `def __init__()`:  用来**初始化各自算法需要的对象**
 
-   2. def observe(self, data):  **训练过程**中，面对到来的一个batch的样本完成**训练的损失计算以及参数更新**，**返回pred, acc, loss**:  预测结果，准确率，损失    <br>
+   2. `def observe(self, data)`:  **训练过程**中，面对到来的一个batch的样本完成**训练的损失计算以及参数更新**，**返回pred, acc, loss**:  预测结果，准确率，损失    <br>
 
       > 训练深度神经网络时，通常会将训练数据划分为多个 batch，并将每个 batch 依次输入到网络中进行训练。这样做的好处是可以利用高效的并行计算，提高训练的效率，并且可以在每个 batch 上进行梯度更新，从而更好地优化网络权重。
       >
       > 与 batch 相关的概念是 "epoch"。一个 epoch 表示将所有训练样本都经过一次前向传播和反向传播的过程。在一个 epoch 中，所有的训练样本都被用于更新网络的权重
 
-   3. def inference(self, data):   **推理过程**中，面对到来的一个batch的样本，完成预测，**返回pred, acc**   <br>
+   3. `def inference(self, data)`:   **推理过程**中，面对到来的一个batch的样本，完成预测，**返回pred, acc**   <br>
 
-   4. def before_task() / after_task():  <u>**可选**</u>，如果算法在**每个任务开始前后有额外的操作**，在这两个函数内完成   <br>
+   4. `def before_task() / after_task()`:  <u>**可选**</u>，如果算法在**每个任务开始前后有额外的操作**，在这两个函数内完成   <br>
 
       1. before_task：负责在每个任务训练前，执行更换分类头、重置优化器、赋值变量等操作
       2. afer_task：在每个任务结束时更新内存中保存的样本（replay 模型）

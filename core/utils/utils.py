@@ -8,7 +8,7 @@ import time
 from tqdm import tqdm
 from torch.optim.lr_scheduler import _LRScheduler
 
-
+# 这个类用于计算各种评估参数的均值.
 class AverageMeter(object):
     """
     A AverageMeter to meter avg of number-like data.

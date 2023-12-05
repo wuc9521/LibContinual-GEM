@@ -3,11 +3,6 @@
 import torch
 import numpy as np
 
-#         >>> transform=transforms.Compose([
-#         >>>     transforms.Resize(256),
-#         >>>     Cutout(n_holes=args.n_holes, length=args.length)
-#         >>>     transforms.ToTensor()])
-
 
 class Cutout(object):
     """Randomly mask out one or more patches from an image.

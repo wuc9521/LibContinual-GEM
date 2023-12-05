@@ -9,7 +9,7 @@ from .dataset import ContinualDatasets, Continuum
 MEAN = [120.39586422 / 255.0, 115.59361427 / 255.0, 104.54012653 / 255.0]
 STD = [70.68188272 / 255.0, 68.27635443 / 255.0, 72.54505529 / 255.0]
 
-def get_dataloader(config, mode, cls_map=None):
+def get_dataloader(config, mode, cls_map=None, is_binary=False):
     '''
     Initialize the dataloaders for Continual Learning.
 
@@ -33,8 +33,8 @@ def get_dataloader(config, mode, cls_map=None):
     trfms_list.append(transforms.Normalize(mean=MEAN, std=STD))
     trfms = transforms.Compose(trfms_list)
 
-    if config['classifier']['name'] == "GEM": # added by @wct
-        return None # added by @wct
+    if is_binary: # added by @wct
+        return None
     else:
         if cls_map is None:
             cls_list = os.listdir(os.path.join(data_root, mode))
@@ -42,16 +42,23 @@ def get_dataloader(config, mode, cls_map=None):
             cls_map = dict()
             for label, ori_label in enumerate(perm):
                 cls_map[label] = cls_list[ori_label]
-        return ContinualDatasets(mode, task_num, init_cls_num, inc_cls_num, data_root, cls_map, trfms)
+        return ContinualDatasets(
+            mode, 
+            task_num, 
+            init_cls_num, 
+            inc_cls_num, 
+            data_root, 
+            cls_map, 
+            trfms
+        )
 
 # added by @ycy
 def unpickle(file):
     with open(file, 'rb') as fo:
         dict = pickle.load(fo, encoding='bytes')
-    return dict
+    return dict    
 
 
-# added by @ycy, modified by @wct
 def load_datasets(config):
     data_root = config['data_root']
     cifar100_train = unpickle(os.path.join(data_root, "train"))
@@ -77,7 +84,7 @@ def load_datasets(config):
         c2 = (t + 1) * cpt
         i_tr = ((y_tr >= c1) & (y_tr < c2)).nonzero().view(-1)
         i_te = ((y_te >= c1) & (y_te < c2)).nonzero().view(-1)
-        tasks_tr.append([(c1, c2), x_tr[i_tr].clone(), y_tr[i_tr].clone()])  # 所以tasks_tr 是一个 n_tasks * 3 的列表
+        tasks_tr.append([(c1, c2), x_tr[i_tr].clone(), y_tr[i_tr].clone()])
         tasks_te.append([(c1, c2), x_te[i_te].clone(), y_te[i_te].clone()])
 
 
@@ -88,4 +95,5 @@ def load_datasets(config):
     for i in range(len(d_tr)):
         n_outputs = max(n_outputs, d_tr[i][2].max().item())
         n_outputs = max(n_outputs, d_te[i][2].max().item())
-    return d_tr, d_te, n_inputs, n_outputs + 1, len(d_tr)
+    print("task num: ", len(d_tr))        
+    return d_tr, d_te, n_inputs, n_outputs + 1

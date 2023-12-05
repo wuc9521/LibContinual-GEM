@@ -5,6 +5,7 @@ import time
 import torch
 import datetime
 from torch import nn
+import torch.optim as optim
 from tqdm import tqdm
 from core.data import get_dataloader
 from core.utils import init_seed, AverageMeter, get_instance, GradualWarmupScheduler, count_parameters
@@ -36,6 +37,7 @@ class Trainer(object):
         self.device = self._init_device(config) 
         self.init_cls_num, self.inc_cls_num, self.task_num = self._init_data(config)
         self.model = self._init_model(config)  # modified by wct
+        self.is_binary = (config['classifier']['name'] == "GEM")  # added by @wct: 如果是GEM模型, 使用的是二进制数据集
         # @wct: 这里的 _init_* 函数就相当于 Java 里的 new
         (
             self.train_loader,
@@ -136,7 +138,6 @@ class Trainer(object):
         scheduler = GradualWarmupScheduler(
             optimizer, self.config
         )  # if config['warmup']==0, scheduler will be a normal lr_scheduler, jump into this class for details
-        print(optimizer)
         init_epoch = config['init_epoch'] if 'init_epoch' in config.keys() else config['epoch']
         return init_epoch, config['epoch'], optimizer, scheduler
 
@@ -161,8 +162,7 @@ class Trainer(object):
             self.x_te,
             n_inputs, # 输入特征的数量
             n_outputs, # 输出类别的数量
-            task_num, # 任务的数量
-        ) = load_datasets(config) if (config['classifier']['name'] == "GEM") else (None, None, None, None, None) # added by @wct
+        ) = load_datasets(config)
         # @wct: 这里写的很丑, 后面改
 
         dic = {
@@ -170,7 +170,7 @@ class Trainer(object):
             "device": self.device,
             "n_inputs": n_inputs, # added by @wct
             "n_outputs": n_outputs, # added by @wct
-            "task_num": task_num, # added by @wct
+            "task_num": self.task_num, # added by @wct
         }
         model = get_instance(arch, "classifier", config, **dic) 
         print(model)
@@ -190,9 +190,16 @@ class Trainer(object):
             train_loaders (list): Each task's train dataloader.
             test_loaders (list): Each task's test dataloader.
         '''
-        train_loaders = get_dataloader(config, "train")
-        test_loaders = get_dataloader(config, "test", cls_map=(
-            train_loaders.cls_map if config['classifier']['name'] != "GEM" else None)
+        train_loaders = get_dataloader(
+            config, 
+            "train", 
+            is_binary=self.is_binary
+        )
+        test_loaders = get_dataloader(
+            config, 
+            "test", 
+            cls_map=(train_loaders.cls_map if config['classifier']['name'] != "GEM" else None), 
+            is_binary=self.is_binary
         )
         return train_loaders, test_loaders
     
@@ -206,9 +213,7 @@ class Trainer(object):
         Returns:
             buffer (Buffer): a buffer for old samples.
         '''
-        buffer = get_instance(arch, "buffer", config)
-
-        return buffer
+        return get_instance(arch, "buffer", config)
 
     # 主要的函数
     def train_loop(self,):
@@ -217,67 +222,50 @@ class Trainer(object):
         """
         if self.config['classifier']['name'] == "GEM": # this "if-else" is added by @wct
             # set up continuum
-            cuda = self.config['cuda'] == "yes", # added by @wct
             continuum = Continuum(
                 self.x_tr, 
                 batch_size=self.config['batch_size'], # added by @wct
-                shuffle_tasks=self.config['shuffle_tasks'], # added by @wct
                 samples_per_task=self.config['samples_per_task'], # added by @wct
                 epoch=self.config['epoch'], # added by @wct
                 task_num=self.task_num # added by @wct
             )
 
             # load model
-            model = self.model # added by @wct
-            if cuda: # modified by @wct
-                model.cuda()
-
-            # run model on continuum
-                        # run model on continuum
+            self.model.cuda()
             result_a = [] # modified by @wct: 这里原本是life_experience()函数
             result_t = []
-            (
-                log_every,
-                cuda
-            ) = (
-                self.config['log_every'],
-                self.config['cuda'] == "yes"
-            )
+            log_every = self.config['log_every']
             current_task = 0
-            time_start = time.time()
 
             for (i, (x, task_idx, y)) in enumerate(tqdm(continuum, desc='Continuum', leave=True)):
                 if(((i % log_every) == 0) or (task_idx != current_task)):
-                    result_a.append(eval_tasks(model, self.x_te, cuda=cuda))
+                    result_a.append(eval_tasks(self.model, self.x_te, cuda=True))
                     result_t.append(current_task)
                     current_task = task_idx
 
-                v_x = x.view(x.size(0), -1)
-                v_y = y.long()
+                v_x = x.view(x.size(0), -1).cuda()
+                v_y = y.long().cuda()
 
-                if cuda:
-                    v_x = v_x.cuda()
-                    v_y = v_y.cuda()
+                self.model.train()
+                self.model.observe(v_x, task_idx, v_y)
 
-                model.train()
-                model.observe(v_x, task_idx, v_y)
-
-            result_a.append(eval_tasks(model, self.x_te, cuda=cuda))
+            result_a.append(eval_tasks(self.model, self.x_te, cuda=True))
             result_t.append(current_task)
 
-            time_end = time.time()
-            time_spent = time_end - time_start
-
-            (result_t, result_a, spent_time) = (torch.Tensor(result_t), torch.Tensor(result_a), time_spent)
+            (result_t, result_a) = (torch.Tensor(result_t), torch.Tensor(result_a))
             print("result_t: {}".format(result_t))
             print("result_a: {}".format(result_a))
         
-        else: 
-            # experiment_begin = time()
+        else: # this "if-else" is added by @wct
             for task_idx in range(self.task_num):
                 print("================Task {} Start!================".format(task_idx))
                 if hasattr(self.model, 'before_task'):
-                    self.model.before_task(task_idx, self.buffer, self.train_loader.get_loader(task_idx), self.test_loader.get_loader(task_idx))
+                    self.model.before_task(
+                        task_idx, 
+                        self.buffer, 
+                        self.train_loader.get_loader(task_idx), 
+                        self.test_loader.get_loader(task_idx)
+                    )
                 (
                     _, __,
                     self.optimizer,
