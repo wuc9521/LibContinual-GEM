@@ -25,14 +25,10 @@ class CosineLinear(nn.Module):
             self.sigma.data.fill_(1) #for initializaiton of sigma
 
     def forward(self, input):
-        #w_norm = self.weight.data.norm(dim=1, keepdim=True)
-        #w_norm = w_norm.expand_as(self.weight).add_(self.epsilon)
-        #x_norm = input.data.norm(dim=1, keepdim=True)
-        #x_norm = x_norm.expand_as(input).add_(self.epsilon)
-        #w = self.weight.div(w_norm)
-        #x = input.div(x_norm)
-        out = F.linear(F.normalize(input, p=2,dim=1), \
-                F.normalize(self.weight, p=2, dim=1))
+        out = F.linear(
+            F.normalize(input, p=2,dim=1), 
+            F.normalize(self.weight, p=2, dim=1)
+        )
         if self.sigma is not None:
             out = self.sigma * out
         return out

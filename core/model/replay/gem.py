@@ -87,8 +87,6 @@ class GEM(nn.Module):
             self, 
             backbone, # added by @wct
             device, # added by @wct
-            # num_class, # added by @wct
-            # feat_dim, # added by @wct
             memory_strength, # added by @wct
             n_memories, # added by @wct
             n_layers, # added by @wct
@@ -96,7 +94,7 @@ class GEM(nn.Module):
             lr, # added by @wct
             n_inputs, # 输入特征的数量
             n_outputs, # 输出类别的数量
-            n_tasks, # 任务的数量
+            task_num, # 任务的数量
         ):
         super(GEM, self).__init__()
         nl = n_layers
@@ -113,9 +111,8 @@ class GEM(nn.Module):
         self.gpu = True
 
         # allocate episodic memory
-        self.memory_data = torch.FloatTensor(
-            n_tasks, self.n_memories, n_inputs)
-        self.memory_labs = torch.LongTensor(n_tasks, self.n_memories)
+        self.memory_data = torch.FloatTensor(task_num, self.n_memories, n_inputs)
+        self.memory_labs = torch.LongTensor(task_num, self.n_memories)
         # if cuda:
         self.memory_data = self.memory_data.cuda() # modified by @wct
         self.memory_labs = self.memory_labs.cuda() # modified by @wct
@@ -124,7 +121,7 @@ class GEM(nn.Module):
         self.grad_dims = []
         for param in self.parameters():
             self.grad_dims.append(param.data.numel())
-        self.grads = torch.Tensor(sum(self.grad_dims), n_tasks)
+        self.grads = torch.Tensor(sum(self.grad_dims), task_num)
         # if args.cuda:
         self.grads = self.grads.cuda() # modified by @wct
 
@@ -132,7 +129,7 @@ class GEM(nn.Module):
         self.observed_tasks = []
         self.old_task = -1
         self.mem_cnt = 0
-        self.nc_per_task = int(n_outputs / n_tasks) if self.is_cifar else n_outputs
+        self.nc_per_task = int(n_outputs / task_num) if self.is_cifar else n_outputs
 
     def forward(self, x, t):
         output = self.net(x)

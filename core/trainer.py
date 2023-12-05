@@ -14,6 +14,7 @@ from core.model.buffer import *
 from torch.utils.data import DataLoader
 import numpy as np
 from core.model.replay.gem import GEM
+from core.model.buffer import LinearBuffer, hearding_update, random_update
 from core.utils import Logger, fmt_date_str, eval_tasks
 from core.data.dataloader import load_datasets
 from core.data.dataset import Continuum
@@ -108,13 +109,11 @@ class Trainer(object):
         train_meter = AverageMeter(
             "train",
             ["batch_time", "data_time", "calc_time", "loss", "acc1"],
-            # self.writer,
         )
 
         test_meter = [AverageMeter(
             "test",
             ["batch_time", "data_time", "calc_time", "acc1"],
-            # self.writer,
         ) for _ in range(self.task_num)]
 
         return train_meter, test_meter
@@ -138,13 +137,7 @@ class Trainer(object):
             optimizer, self.config
         )  # if config['warmup']==0, scheduler will be a normal lr_scheduler, jump into this class for details
         print(optimizer)
-        
-
-        if 'init_epoch' in config.keys():
-            init_epoch = config['init_epoch']
-        else:
-            init_epoch = config['epoch']
-        
+        init_epoch = config['init_epoch'] if 'init_epoch' in config.keys() else config['epoch']
         return init_epoch, config['epoch'], optimizer, scheduler
 
     def _init_data(self, config):
@@ -168,7 +161,7 @@ class Trainer(object):
             self.x_te,
             n_inputs, # 输入特征的数量
             n_outputs, # 输出类别的数量
-            n_tasks, # 任务的数量
+            task_num, # 任务的数量
         ) = load_datasets(config) if (config['classifier']['name'] == "GEM") else (None, None, None, None, None) # added by @wct
         # @wct: 这里写的很丑, 后面改
 
@@ -177,7 +170,7 @@ class Trainer(object):
             "device": self.device,
             "n_inputs": n_inputs, # added by @wct
             "n_outputs": n_outputs, # added by @wct
-            "n_tasks": n_tasks, # added by @wct
+            "task_num": task_num, # added by @wct
         }
         model = get_instance(arch, "classifier", config, **dic) 
         print(model)
@@ -201,7 +194,6 @@ class Trainer(object):
         test_loaders = get_dataloader(config, "test", cls_map=(
             train_loaders.cls_map if config['classifier']['name'] != "GEM" else None)
         )
-
         return train_loaders, test_loaders
     
     def _init_buffer(self, config):
@@ -225,56 +217,60 @@ class Trainer(object):
         """
         if self.config['classifier']['name'] == "GEM": # this "if-else" is added by @wct
             # set up continuum
-            (
-                cuda,
-                results_path,
-                data_file
-            ) = (
-                self.config['cuda'] == "yes",
-                self.config['results_path'],
-                self.config['data_file']
-            )
+            cuda = self.config['cuda'] == "yes", # added by @wct
             continuum = Continuum(
                 self.x_tr, 
                 batch_size=self.config['batch_size'], # added by @wct
                 shuffle_tasks=self.config['shuffle_tasks'], # added by @wct
                 samples_per_task=self.config['samples_per_task'], # added by @wct
                 epoch=self.config['epoch'], # added by @wct
+                task_num=self.task_num # added by @wct
             )
 
             # load model
-            # Model = importlib.import_module('model.gem') # modified by @wct
-            # model = Model.Net(n_inputs, n_outputs, n_tasks, args) # modified by @wct
             model = self.model # added by @wct
             if cuda: # modified by @wct
                 model.cuda()
 
             # run model on continuum
-            result_t, result_a, spent_time = life_experience(model, continuum, self.x_te, config=self.config)
-
-            # prepare saving path and file name
-            if not os.path.exists(results_path):
-                os.makedirs(results_path)
-            
-            uid = uuid.uuid4().hex    
-            fname = os.path.join(
-                results_path, 
-                'gem_' + data_file + '_' + datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '_' + uid
+                        # run model on continuum
+            result_a = [] # modified by @wct: 这里原本是life_experience()函数
+            result_t = []
+            (
+                log_every,
+                cuda
+            ) = (
+                self.config['log_every'],
+                self.config['cuda'] == "yes"
             )
+            current_task = 0
+            time_start = time.time()
 
-            # save confusion matrix and print one line of stats
-            stats = confusion_matrix(result_t, result_a, fname + '.txt')
-            one_liner = str(self.config['classifier']) + ' # ' # modified by @wct
-            one_liner += ' '.join(["%.3f" % stat for stat in stats])
-            print(fname + ': ' + one_liner + ' # ' + str(spent_time))
+            for (i, (x, task_idx, y)) in enumerate(tqdm(continuum, desc='Continuum', leave=True)):
+                if(((i % log_every) == 0) or (task_idx != current_task)):
+                    result_a.append(eval_tasks(model, self.x_te, cuda=cuda))
+                    result_t.append(current_task)
+                    current_task = task_idx
 
-            # save all results in binary file
-            torch.save((
-                result_t, 
-                result_a, 
-                model.state_dict(), 
-                stats, 
-                one_liner), fname + '.pt') # modified by @wct
+                v_x = x.view(x.size(0), -1)
+                v_y = y.long()
+
+                if cuda:
+                    v_x = v_x.cuda()
+                    v_y = v_y.cuda()
+
+                model.train()
+                model.observe(v_x, task_idx, v_y)
+
+            result_a.append(eval_tasks(model, self.x_te, cuda=cuda))
+            result_t.append(current_task)
+
+            time_end = time.time()
+            time_spent = time_end - time_start
+
+            (result_t, result_a, spent_time) = (torch.Tensor(result_t), torch.Tensor(result_a), time_spent)
+            print("result_t: {}".format(result_t))
+            print("result_a: {}".format(result_a))
         
         else: 
             # experiment_begin = time()
@@ -376,43 +372,3 @@ class Trainer(object):
                 per_task_acc.append(round(meter[t].avg("acc1"), 2))
         
         return {"avg_acc" : np.mean(per_task_acc), "per_task_acc" : per_task_acc}
-    
-
-# added by @wct
-def life_experience(model, continuum, x_te, config): 
-    result_a = []
-    result_t = []
-
-    (
-        log_every,
-        cuda
-    ) = (
-        config['log_every'],
-        config['cuda'] == "yes"
-    )
-    current_task = 0
-    time_start = time.time()
-
-    for (i, (x, t, y)) in enumerate(tqdm(continuum, desc='Continuum', leave=True)):
-        if(((i % log_every) == 0) or (t != current_task)):
-            result_a.append(eval_tasks(model, x_te, cuda=cuda))
-            result_t.append(current_task)
-            current_task = t
-
-        v_x = x.view(x.size(0), -1)
-        v_y = y.long()
-
-        if cuda:
-            v_x = v_x.cuda()
-            v_y = v_y.cuda()
-
-        model.train()
-        model.observe(v_x, t, v_y)
-
-    result_a.append(eval_tasks(model, x_te, cuda=cuda))
-    result_t.append(current_task)
-
-    time_end = time.time()
-    time_spent = time_end - time_start
-
-    return torch.Tensor(result_t), torch.Tensor(result_a), time_spent

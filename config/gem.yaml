@@ -15,7 +15,7 @@ results_path: results/
 init_cls_num: 2
 inc_cls_num: 2
 shuffle_tasks: no
-task_num: 10
+task_num: 10 
 epoch: 10
 val_per_epoch: 10
 batch_size: 10
@@ -58,8 +58,6 @@ backbone:
 classifier:
   name: GEM
   kwargs:
-    # num_class: 10
-    # feat_dim: 512
     memory_strength: 0.5
     n_memories: 256
     n_layers: 2
