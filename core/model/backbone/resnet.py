@@ -217,6 +217,7 @@ class ResNet(nn.Module):
 
     def _forward_impl(self, x):
         # See note [TorchScript super()]
+        print(x)
         x = self.conv1(x)  # [bs, 64, 32, 32]
 
         x_1 = self.layer1(x)  # [bs, 128, 32, 32]
