@@ -175,7 +175,8 @@ class ResNet(nn.Module):
                                        dilate=replace_stride_with_dilation[2])
         # @lyl: GEM这里还有一个Linear层，没有AvgPool
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.out_dim = 512 * block.expansion
+        # self.out_dim = 512 * block.expansion
+        self.out_dim = self.inplanes*8 * block.expansion #added by @lyl
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -218,7 +219,9 @@ class ResNet(nn.Module):
     def _forward_impl(self, x):
         # See note [TorchScript super()]
         # print(x)
-        x = self.conv1(x)  # [bs, 64, 32, 32]
+        bsz = x.size(0) #added by @lyl
+        # x = self.conv1(x)  # [bs, 64, 32, 32]
+        x = self.conv1(x.view(bsz,3,32,32)) # added by @lyl
 
         x_1 = self.layer1(x)  # [bs, 128, 32, 32]
         x_2 = self.layer2(x_1)  # [bs, 256, 16, 16]
