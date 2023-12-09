@@ -86,8 +86,6 @@ class GEM(nn.Module):
             n_outputs, # 输出类别的数量
             task_num, # 任务的数量: 从设计的角度说, 实际上模型不应该知道任务的数量(?)
         ):
-        print("n_inputs")
-        print(n_inputs)
         super(GEM, self).__init__()
         self.margin = memory_strength
 
@@ -99,10 +97,8 @@ class GEM(nn.Module):
         self.gpu = True
 
         # allocate episodic memory
-        self.memory_data = torch.FloatTensor(task_num, self.n_memories, n_inputs) # 作为buffer, 存储样本
-        self.memory_labs = torch.LongTensor(task_num, self.n_memories) # 作为buffer, 存储标签
-        self.memory_data = self.memory_data.cuda() # modified by @wct
-        self.memory_labs = self.memory_labs.cuda() # modified by @wct
+        self.memory_data = torch.FloatTensor(task_num, self.n_memories, n_inputs).cuda() # 作为buffer, 存储样本
+        self.memory_labs = torch.LongTensor(task_num, self.n_memories).cuda() # 作为buffer, 存储标签
 
         # allocate temporary synaptic memory
         self.grad_dims = []
@@ -120,17 +116,17 @@ class GEM(nn.Module):
         # 不如在before_task这个地方把Continuum的数据加载进来
         pass
 
-    def forward(self, x, t):
+    def forward(self, x, task_idx):
         output = self.net(x)
-        offset1 = int(t * self.nc_per_task)
-        offset2 = int((t + 1) * self.nc_per_task)
+        offset1 = int(task_idx * self.nc_per_task)
+        offset2 = int((task_idx + 1) * self.nc_per_task)
         if offset1 > 0:
             output[:, :offset1].data.fill_(-10e10)
         if offset2 < self.n_outputs:
             output[:, offset2:self.n_outputs].data.fill_(-10e10)
         return output
 
-    def observe(self, x, task_idx, y):
+    def observe(self, x, task_idx, y): # TODO: observe函数要把task_idx分开, 作为类的成员变量.
         # update memory
         if task_idx != self.old_task:
             self.observed_tasks.append(task_idx)
@@ -147,8 +143,7 @@ class GEM(nn.Module):
         else:
             self.memory_labs[task_idx, self.mem_cnt: endcnt].copy_(y.data[: effbsz])
         self.mem_cnt += effbsz
-        if self.mem_cnt == self.n_memories:
-            self.mem_cnt = 0
+        if self.mem_cnt == self.n_memories: self.mem_cnt = 0
 
         # compute gradient on previous tasks
         if len(self.observed_tasks) > 1:
@@ -184,9 +179,7 @@ class GEM(nn.Module):
             dotp = torch.mm(self.grads[:, task_idx].unsqueeze(0),
                             self.grads.index_select(1, indx))
             if (dotp < 0).sum() != 0:
-                project2cone2(self.grads[:, task_idx].unsqueeze(1),
-                              self.grads.index_select(1, indx), self.margin)
+                project2cone2(self.grads[:, task_idx].unsqueeze(1), self.grads.index_select(1, indx), self.margin)
                 # copy gradients back
-                overwrite_grad(self.parameters, self.grads[:, task_idx],
-                               self.grad_dims)
+                overwrite_grad(self.parameters, self.grads[:, task_idx], self.grad_dims)
         self.opt.step()

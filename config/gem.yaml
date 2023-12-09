@@ -10,9 +10,9 @@ image_size: 32
 save_path: ./
 
 # data
-init_cls_num: 2
-inc_cls_num: 2
-task_num: 10 
+init_cls_num: 5
+inc_cls_num: 5
+task_num: 20
 epoch: 10
 val_per_epoch: 10
 batch_size: 10

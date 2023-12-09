@@ -12,6 +12,7 @@ finetune都是false, 所以这里忽略finetune
 print("i: {}, task_idx: {}".format(i, task_idx))
 ```
 通过这行看到, 每2500个循环是一个task. 这和论文是匹配的.
+[这篇文章](https://blog.csdn.net/nyist_yangguang/article/details/126077044)介绍了二进制的cifar100数据集.
 
 
 # TODO
@@ -20,5 +21,5 @@ print("i: {}, task_idx: {}".format(i, task_idx))
 - [x] 消除`life_experience()`函数
 - [ ] 进一步地整合参数
 - [ ] 重新考虑是否有办法不消除continuum, 而是让使用者感受不到它的存在, 比如说加到 `GEM.before_task()` 里面
-- [ ] 将class GEM的 `__init__()` 函数和 `observe()` 函数中的数据存储部分抽象成RingBuffer类.
+- [ ] 将 `class GEM` 的 `__init__()` 函数和 `observe()` 函数中的数据存储部分抽象成RingBuffer类.
 - [ ] 将 `class BasicBloc4GEM` 消除, 和上面的 `class BasicBlock` 合并. 类似地消除 `ResNet18`, 和上面的 `resnet18` 合并 (这一部分难度较大)

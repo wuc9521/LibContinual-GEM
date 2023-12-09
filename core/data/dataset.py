@@ -67,7 +67,6 @@ class SingleDataset(Dataset):
 
         return imgs, labels
 
-    
 
 class Continuum:
     def __init__(
