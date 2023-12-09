@@ -220,8 +220,8 @@ class ResNet(nn.Module):
         # See note [TorchScript super()]
         # print(x)
         bsz = x.size(0) #added by @lyl
-        # x = self.conv1(x)  # [bs, 64, 32, 32]
-        x = self.conv1(x.view(bsz,3,32,32)) # added by @lyl
+        x = self.conv1(x)  # [bs, 64, 32, 32]
+        # x = self.conv1(x.view(bsz,3,32,32)) # added by @lyl
 
         x_1 = self.layer1(x)  # [bs, 128, 32, 32]
         x_2 = self.layer2(x_1)  # [bs, 256, 16, 16]

@@ -5,7 +5,7 @@ includes:
   - headers/optimizer.yaml
 
 # data_root: /home/featurize/work/data/cifar10
-data_root: ../cifar-100-python
+data_root: ../cifar-100-binary
 image_size: 32
 save_path: ./
 
