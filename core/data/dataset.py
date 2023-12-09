@@ -78,7 +78,6 @@ class Continuum:
         ):
         self.data = data
         self.batch_size = batch_size  # batch_size 是每次传递给模型的样本数目
-
         sample_permutations = [] # 生成任务数据的随机排列
 
         for task_idx in range(task_num):
@@ -119,3 +118,42 @@ class Continuum:
             self.current += i
             j = torch.LongTensor(j)
             return self.data[ti][1][j], ti, self.data[ti][2][j]
+        
+
+class Continuum4Index:
+    def __init__(
+            self, data, 
+            batch_size,
+            samples_per_task,
+            epoch,
+            task_idx
+        ):
+        self.data = data
+        self.batch_size = batch_size
+        self.task_idx = task_idx
+        sample_permutations = []
+        N = data[task_idx][1].size(0)
+        n = N if samples_per_task <= 0 else min(samples_per_task, N)
+        p = torch.randperm(N)[0:n]
+        sample_permutations.append(p)
+
+        self.permutation = []
+        for _ in range(epoch):
+            task_p = [[task_idx, i] for i in sample_permutations[task_idx]]
+            random.shuffle(task_p)
+            self.permutation += task_p
+
+        self.length = len(self.permutation) # 长度为 epoch * samples_per_task
+        self.current = 0
+
+
+    def __getitem__(self, index):
+        if index < 0 or index >= self.length: raise IndexError("Index out of range")
+        task_idx = self.task_idx
+        j = []
+        i = 0
+        while (((index + i) < self.length) and (self.permutation[index + i][0] == task_idx) and (i < self.batch_size)):
+            j.append(self.permutation[index + i][1])
+            i += 1
+        j = torch.LongTensor(j)
+        return self.data[task_idx][1][j], self.data[task_idx][2][j], task_idx

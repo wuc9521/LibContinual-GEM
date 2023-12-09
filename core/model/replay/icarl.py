@@ -150,15 +150,23 @@ class ICarl(nn.Module):
         buffer.reduce_old_data(self.cur_task_id, self.accu_cls_num)
 
         val_transform = test_loaders[0].dataset.trfms
-        buffer.update(self.network, train_loader, val_transform,
-                      self.cur_task_id, self.accu_cls_num, self.cur_cls_indexes,
-                      self.device)
+        buffer.update(
+            self.network, 
+            train_loader, 
+            val_transform,
+            self.cur_task_id, 
+            self.accu_cls_num, 
+            self.cur_cls_indexes,
+            self.device
+        )
 
         # compute class mean vector via samples in buffer
-        self.class_means = self.calc_class_mean(buffer,
-                                                train_loader,
-                                                val_transform,
-                                                self.device).to(self.device)
+        self.class_means = self.calc_class_mean(
+            buffer,
+            train_loader,
+            val_transform,
+            self.device
+        ).to(self.device)
 
         self.cur_task_id += 1
 

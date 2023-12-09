@@ -12,7 +12,7 @@ import numpy as np
 from core.model.buffer import LinearBuffer, hearding_update, random_update
 from core.utils import Logger, fmt_date_str, eval_tasks
 from core.data.dataloader import load_datasets
-from core.data.dataset import Continuum
+from core.data.dataset import *
 
 class Trainer(object):
     """
@@ -37,7 +37,7 @@ class Trainer(object):
             self.test_loader,
         ) = self._init_dataloader(config) 
         
-        self.buffer = self._init_buffer(config)
+        self.buffer = self._init_buffer(config) if config['classifier']['name'] != "GEM" else None
         (
             self.init_epoch,
             self.inc_epoch,
@@ -50,27 +50,15 @@ class Trainer(object):
         self.val_per_epoch = config['val_per_epoch']
 
     def _init_logger(self, config, mode='train'):
-        '''
-        Init logger.
-
-        Args:
-            config (dict): Parsed config file.
-
-        Returns:
-            logger (Logger)
-        '''
-
         save_path = config['save_path']
         log_path = os.path.join(save_path, "log")
-        if not os.path.isdir(log_path):
-            os.mkdir(log_path) 
+        if not os.path.isdir(log_path): os.mkdir(log_path) 
         log_prefix = config['classifier']['name'] + "-" + config['backbone']['name'] + "-" + f"epoch{config['epoch']}"
         log_file = os.path.join(log_path, "{}-{}.log".format(log_prefix, fmt_date_str()))
         logger = Logger(log_file)
 
         # hack sys.stdout
         sys.stdout = logger
-
         return logger
 
     def _init_device(self, config):
@@ -182,28 +170,16 @@ class Trainer(object):
             test_loaders (list): Each task's test dataloader.
         '''
         train_loaders = get_dataloader(
-            config, 
-            "train", 
-            is_binary=self.is_binary
+            config, "train",  is_binary=self.is_binary
         )
         test_loaders = get_dataloader(
-            config, 
-            "test", 
+            config, "test", 
             cls_map=(train_loaders.cls_map if config['classifier']['name'] != "GEM" else None), 
             is_binary=self.is_binary
         )
         return train_loaders, test_loaders
     
-    def _init_buffer(self, config):
-        '''
-        Init Buffer
-        
-        Args:
-            config (dict): Parsed config file.
-
-        Returns:
-            buffer (Buffer): a buffer for old samples.
-        '''
+    def _init_buffer(self, config): 
         return get_instance(arch, "buffer", config)
 
     # 主要的函数
@@ -221,21 +197,43 @@ class Trainer(object):
                 task_num=self.task_num # added by @wct
             )
 
+            dataloader4index = Continuum4Index(
+                self.x_tr, 
+                batch_size=self.config['batch_size'], # added by @wct
+                samples_per_task=self.config['samples_per_task'], # added by @wct
+                epoch=self.config['epoch'], # added by @wct
+                task_num=self.task_num # added by @wct
+            )
+
             # load model
             self.model.cuda()
             result_a = [] # modified by @wct: 这里原本是life_experience()函数
             result_t = []
             log_every = self.config['log_every']
             current_task = 0
+            samples_per_task = self.config['samples_per_task']
 
             for task_idx in range(self.task_num):
                 print("================Task {} Start!================".format(task_idx))
                 if hasattr(self.model, 'before_task'):
                     self.model.before_task(
                         task_idx, 
+                        self.buffer
                     )
+                print(dataloader4index[task_idx])
+                for i in range(samples_per_task):
+                    if (samples_per_task * task_idx + i) % log_every == 0:
+                        result_a.append(eval_tasks(self.model, self.x_te))
+                        result_t.append(task_idx)
 
-            for (i, (x, task_idx, y)) in enumerate(tqdm(dataloader, desc='Continuum', leave=True)):
+                    x, y = dataloader4index[task_idx][i]
+                    v_x = x.view(x.size(0), -1).cuda()
+                    v_y = y.long().cuda()
+
+                    self.model.train()
+                    self.model.observe(v_x, task_idx, v_y)
+
+            for (i, (x, task_idx, y)) in enumerate(tqdm(dataloader, desc="Continuum")):
                 if(((i % log_every) == 0) or (task_idx != current_task)):
                     result_a.append(eval_tasks(self.model, self.x_te))
                     result_t.append(current_task)
@@ -259,9 +257,9 @@ class Trainer(object):
                 print("================Task {} Start!================".format(task_idx))
                 if hasattr(self.model, 'before_task'):
                     self.model.before_task(
-                        task_idx, 
-                        self.buffer, 
-                        self.train_loader.get_loader(task_idx), 
+                        task_idx,
+                        self.buffer,
+                        self.train_loader.get_loader(task_idx),
                         self.test_loader.get_loader(task_idx)
                     )
                 (
@@ -328,7 +326,6 @@ class Trainer(object):
         meter = self.train_meter
         meter.reset()
         
-
         with tqdm(total=len(dataloader)) as pbar:
             for batch_idx, batch in enumerate(dataloader):
                 output, acc, loss = self.model.observe(batch)

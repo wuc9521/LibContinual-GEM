@@ -4,6 +4,7 @@ import torch.optim as optim
 import numpy as np
 import quadprog
 from core.model.backbone.resnet import ResNet18
+from core.model.buffer.ringbuffer import RingBuffer
         
 
 # Auxiliary functions useful for GEM's inner optimization.
@@ -94,7 +95,6 @@ class GEM(nn.Module):
         self.n_outputs = n_outputs
         self.opt = optim.SGD(self.parameters(), lr)
         self.n_memories = n_memories
-        self.gpu = True
 
         # allocate episodic memory
         self.memory_data = torch.FloatTensor(task_num, self.n_memories, n_inputs).cuda() # 作为buffer, 存储样本
@@ -102,7 +102,7 @@ class GEM(nn.Module):
 
         # allocate temporary synaptic memory
         self.grad_dims = []
-        for param in self.parameters():
+        for param in self.parameters(): 
             self.grad_dims.append(param.data.numel())
         self.grads = torch.Tensor(sum(self.grad_dims), task_num).cuda() # modified by @wct
 
@@ -112,9 +112,11 @@ class GEM(nn.Module):
         self.mem_cnt = 0
         self.nc_per_task = int(n_outputs / task_num)
 
-    def before_task(self, task_idx):
+    def before_task(self, buffer, task_idx):
         # 不如在before_task这个地方把Continuum的数据加载进来
-        pass
+        self.buffer = buffer
+        self.task_idx = task_idx
+
 
     def forward(self, x, task_idx):
         output = self.net(x)
@@ -156,10 +158,9 @@ class GEM(nn.Module):
                     self.nc_per_task
                 )
                 ptloss = self.ce(
-                    self.forward(
-                        self.memory_data[past_task],
-                        past_task)[:, offset1: offset2],
-                    self.memory_labs[past_task] - offset1)
+                    self.forward(self.memory_data[past_task], past_task)[:, offset1: offset2],
+                    self.memory_labs[past_task] - offset1
+                )
                 ptloss.backward()
                 store_grad(self.parameters, self.grads, self.grad_dims, past_task)
 
@@ -174,10 +175,8 @@ class GEM(nn.Module):
         if len(self.observed_tasks) > 1:
             # copy gradient
             store_grad(self.parameters, self.grads, self.grad_dims, task_idx)
-            indx = torch.cuda.LongTensor(self.observed_tasks[:-1]) if self.gpu \
-                else torch.LongTensor(self.observed_tasks[:-1])
-            dotp = torch.mm(self.grads[:, task_idx].unsqueeze(0),
-                            self.grads.index_select(1, indx))
+            indx = torch.cuda.LongTensor(self.observed_tasks[:-1])
+            dotp = torch.mm(self.grads[:, task_idx].unsqueeze(0), self.grads.index_select(1, indx))
             if (dotp < 0).sum() != 0:
                 project2cone2(self.grads[:, task_idx].unsqueeze(1), self.grads.index_select(1, indx), self.margin)
                 # copy gradients back

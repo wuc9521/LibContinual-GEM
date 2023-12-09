@@ -23,8 +23,7 @@ def get_dataloader(config, mode, cls_map=None, is_binary=False):
     '''
     task_num = config['task_num']
     data_root = config['data_root']
-    # if not is_binary:
-    if True:
+    if not is_binary:
         init_cls_num = config['init_cls_num']
         inc_cls_num = config['inc_cls_num']
 
@@ -41,10 +40,7 @@ def get_dataloader(config, mode, cls_map=None, is_binary=False):
                 for label, ori_label in enumerate(perm):
                     cls_map[label] = cls_list[ori_label]
         return ContinualDatasets(
-            mode, 
-            task_num, 
-            init_cls_num, 
-            inc_cls_num, 
+            mode, task_num, init_cls_num, inc_cls_num, 
             data_root, 
             cls_map, # TODO: solve class map in binary dataset
             trfms
@@ -86,8 +82,6 @@ def get_dataloader(config, mode, cls_map=None, is_binary=False):
             n_outputs = max(n_outputs, d_tr[i][2].max().item())
             n_outputs = max(n_outputs, d_te[i][2].max().item())     
         return 
-
-
 
 
 

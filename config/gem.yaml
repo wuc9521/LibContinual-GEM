@@ -37,9 +37,9 @@ lr_scheduler:
 buffer:
   name: RingBuffer
   kwargs:
-    buffer_size: 500
-    batch_size: 32
-    strategy: random     # random, equal_random, reservoir, herding
+    # buffer_size: 500
+    # batch_size: 32
+    # strategy: random     # random, equal_random, reservoir, herding
 
 seed: 0
 
