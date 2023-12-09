@@ -1,11 +1,8 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import PIL
-import os
 from typing import List
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
 
 class LinearHerdingBuffer:
     def __init__(self, buffer_size, batch_size):    

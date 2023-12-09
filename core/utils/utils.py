@@ -4,9 +4,11 @@ import torch
 from datetime import datetime
 import numpy as np
 import random
+import time
+from tqdm import tqdm
 from torch.optim.lr_scheduler import _LRScheduler
 
-
+# 这个类用于计算各种评估参数的均值.
 class AverageMeter(object):
     """
     A AverageMeter to meter avg of number-like data.
@@ -78,11 +80,9 @@ def get_instance(module, name, config, **kwargs):
     Returns:
          Corresponding instance.
     """
-    if config[name]["kwargs"] is not None:
-        kwargs.update(config[name]["kwargs"])
-
-    
-    return getattr(module, config[name]["name"])(**kwargs)
+    if config[name]["kwargs"] is not None: 
+        kwargs.update(config[name]["kwargs"]) # 如果存在, 则将这些参数更新到 kwargs 字典中. kwargs 是一个可变关键字参数字典, 用于传递额外的参数给实例化函数.
+    return getattr(module, config[name]["name"])(**kwargs) # 通过 getattr 获取满足条件的构造函数, 并且把(**kwargs)作为参数传递进去.
 
 # https://github.com/ildoonet/pytorch-gradual-warmup-lr/blob/master/warmup_scheduler/scheduler.py
 class GradualWarmupScheduler(_LRScheduler):
@@ -137,18 +137,6 @@ class GradualWarmupScheduler(_LRScheduler):
             base_lr * float(self.last_epoch + 1) / self.warmup
             for base_lr in self.base_lrs
         ]
-        # if self.last_epoch > self.total_epoch:
-        #     if self.after_scheduler:
-        #         if not self.finished:
-        #             self.after_scheduler.base_lrs = [base_lr * self.multiplier for base_lr in self.base_lrs]
-        #             self.finished = True
-        #         return self.after_scheduler.get_last_lr()
-        #     return [base_lr * self.multiplier for base_lr in self.base_lrs]
-
-        # if self.multiplier == 1.0:
-        #     return [base_lr * (float(self.last_epoch) / self.total_epoch) for base_lr in self.base_lrs]
-        # else:
-        #     return [base_lr * ((self.multiplier - 1.) * self.last_epoch / self.total_epoch + 1.) for base_lr in self.base_lrs]
 
     def step_ReduceLROnPlateau(self, metrics, epoch=None):
         if epoch is None:
@@ -199,3 +187,43 @@ def fmt_date_str(date=None, fmt="%y-%m-%d-%H-%M-%S"):
     if date is None:
         date = datetime.now()
     return date.strftime(fmt)
+
+# added by @wct
+def eval_tasks(model, tasks):
+    """
+    对模型在给定任务集上进行评估。
+
+    Args:
+        model: 要评估的模型。
+        tasks: 包含任务信息的列表。每个任务由一个元组 (x, task_idx, y) 表示，其中 task_idx 是任务的标识，
+               x 是输入数据, y 是对应的标签.
+
+    Returns:
+        一个包含每个任务的准确率 (accuracy) 的列表.
+    """
+    model.eval()
+    result = []
+
+    for i, task in enumerate(tasks):
+        t = i
+        x = task[1]
+        y = task[2]
+        rt = 0
+        
+        eval_bs = x.size(0)
+
+        for b_from in range(0, x.size(0), eval_bs):
+            b_to = min(b_from + eval_bs, x.size(0) - 1)
+            if b_from == b_to:
+                xb = x[b_from].view(1, -1)
+                yb = torch.LongTensor([y[b_to]]).view(1, -1)
+            else:
+                xb = x[b_from:b_to]
+                yb = y[b_from:b_to]
+            xb = xb.cuda()
+            _, pb = torch.max(model(xb, t).data.cpu(), 1, keepdim=False)
+            rt += (pb == yb).float().sum()
+
+        result.append(rt / x.size(0))
+
+    return result

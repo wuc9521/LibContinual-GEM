@@ -90,9 +90,6 @@ class LWF(Finetune):
         self.feat_dim = feat_dim
         self.classifier = None
         self.old_fc = None
-        # self.classifier = CosineLinear(feat_dim, kwargs['init_cls_num'])
-        # self.K = kwargs['K']
-        # self.lw_mr = kwargs['lw_mr']
         self.init_cls_num = kwargs['init_cls_num']
         self.inc_cls_num = kwargs['inc_cls_num']
         self.known_cls_num = 0

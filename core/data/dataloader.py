@@ -3,13 +3,13 @@ import pickle
 from torchvision import transforms
 from .augments import *
 import os
+import pprint
 import numpy as np
 from .dataset import ContinualDatasets
-
 MEAN = [120.39586422 / 255.0, 115.59361427 / 255.0, 104.54012653 / 255.0]
 STD = [70.68188272 / 255.0, 68.27635443 / 255.0, 72.54505529 / 255.0]
 
-def get_dataloader(config, mode, cls_map=None):
+def get_dataloader(config, mode, cls_map=None, is_binary=False):
     '''
     Initialize the dataloaders for Continual Learning.
 
@@ -21,47 +21,97 @@ def get_dataloader(config, mode, cls_map=None):
     Returns:
         Dataloaders (list): a list of dataloaders
     '''
-
     task_num = config['task_num']
-    init_cls_num = config['init_cls_num']
-    inc_cls_num = config['inc_cls_num']
-
     data_root = config['data_root']
+    # if not is_binary:
+    if True:
+        init_cls_num = config['init_cls_num']
+        inc_cls_num = config['inc_cls_num']
 
-    trfms_list = get_augment_method(config, mode)
-    trfms_list.append(transforms.ToTensor())
-    trfms_list.append(transforms.Normalize(mean=MEAN, std=STD))
-    trfms = transforms.Compose(trfms_list)
+        trfms_list = get_augment_method(config, mode)
+        trfms_list.append(transforms.ToTensor())
+        trfms_list.append(transforms.Normalize(mean=MEAN, std=STD))
+        trfms = transforms.Compose(trfms_list)
 
-    if cls_map is None:
-        cls_list = os.listdir(os.path.join(data_root, mode))
-        perm = np.random.permutation(len(cls_list))
-        cls_map = dict()
-        for label, ori_label in enumerate(perm):
-            cls_map[label] = cls_list[ori_label]
+        if cls_map is None:
+            if config['classifier']['name'] != "GEM": 
+                cls_list = os.listdir(os.path.join(data_root, mode))
+                perm = np.random.permutation(len(cls_list))
+                cls_map = dict()
+                for label, ori_label in enumerate(perm):
+                    cls_map[label] = cls_list[ori_label]
+        return ContinualDatasets(
+            mode, 
+            task_num, 
+            init_cls_num, 
+            inc_cls_num, 
+            data_root, 
+            cls_map, # TODO: solve class map in binary dataset
+            trfms
+        )
+    else:
+        tasks_tr = []
+        cifar100_train = unpickle(os.path.join(data_root, "train"))
+        x_tr = torch.from_numpy(cifar100_train[b'data']) #训练集
+        y_tr = torch.LongTensor(cifar100_train[b'fine_labels'])
+        x_tr = x_tr.float().view(x_tr.size(0), -1) / 255.0  # 255是图片的像素值范围，将其缩小到 1 - 0
+        torch.manual_seed(config['seed'])
+        cpt = int(100 / config['task_num'])
+        for t in range(config['task_num']):
+            c1 = t * cpt
+            c2 = (t + 1) * cpt
+            i_tr = ((y_tr >= c1) & (y_tr < c2)).nonzero().view(-1)
+            tasks_tr.append([(c1, c2), x_tr[i_tr].clone(), y_tr[i_tr].clone()])
+        d_tr = tasks_tr # 用于训练的数据集
+        n_inputs = d_tr[0][1].size(1) # 输入特征的数量
 
-    return ContinualDatasets(mode, task_num, init_cls_num, inc_cls_num, data_root, cls_map, trfms)
 
-#####################################额外添加transform逻辑##################################################
+        # ============================================
+
+        tasks_te = []
+        cifar100_test = unpickle(os.path.join(data_root, "test"))
+        x_te = torch.from_numpy(cifar100_test[b'data'])
+        y_te = torch.LongTensor(cifar100_test[b'fine_labels'])
+        x_te = x_te.float().view(x_te.size(0), -1) / 255.0
+        torch.manual_seed(config['seed'])
+        cpt = int(100 / config['task_num'])
+        for t in range(config['task_num']):
+            c1 = t * cpt
+            c2 = (t + 1) * cpt
+            i_te = ((y_te >= c1) & (y_te < c2)).nonzero().view(-1)
+            tasks_te.append([(c1, c2), x_te[i_te].clone(), y_te[i_te].clone()])
+        d_te = tasks_te # 用于测试的数据集            
+        n_outputs = 0 # 输出类别的数量
+        for i in range(len(d_tr)):
+            n_outputs = max(n_outputs, d_tr[i][2].max().item())
+            n_outputs = max(n_outputs, d_te[i][2].max().item())     
+        return 
+
+
+
+
+
+
+# added by @ycy
 def unpickle(file):
     with open(file, 'rb') as fo:
         dict = pickle.load(fo, encoding='bytes')
-    return dict
+    return dict    
 
-def get_data_in_gem(config):
+
+def load_datasets(config):
     data_root = config['data_root']
+    cifar100_train = unpickle(os.path.join(data_root, "train"))
+    cifar100_test = unpickle(os.path.join(data_root, "test"))
 
-    cifar100_train = unpickle(os.path.join(data_root,"train"))
-    cifar100_test = unpickle(os.path.join(data_root,"test"))
-
-    x_tr = torch.from_numpy(cifar100_train[b'data'])
+    x_tr = torch.from_numpy(cifar100_train[b'data']) #训练集
     y_tr = torch.LongTensor(cifar100_train[b'fine_labels'])
     x_te = torch.from_numpy(cifar100_test[b'data'])
     y_te = torch.LongTensor(cifar100_test[b'fine_labels'])
 
     torch.manual_seed(config['seed'])
-
-    x_tr = x_tr.float().view(x_tr.size(0), -1) / 255.0  # 255是图片的像素值范围，将其缩小到1-0
+    
+    x_tr = x_tr.float().view(x_tr.size(0), -1) / 255.0  # 255是图片的像素值范围，将其缩小到 1 - 0
     x_te = x_te.float().view(x_te.size(0), -1) / 255.0
 
     cpt = int(100 / config['task_num'])
@@ -74,18 +124,16 @@ def get_data_in_gem(config):
         c2 = (t + 1) * cpt
         i_tr = ((y_tr >= c1) & (y_tr < c2)).nonzero().view(-1)
         i_te = ((y_te >= c1) & (y_te < c2)).nonzero().view(-1)
-        tasks_tr.append([(c1, c2), x_tr[i_tr].clone(), y_tr[i_tr].clone()])  # 所以tasks_tr是一个n_tasks*3的列表
+        tasks_tr.append([(c1, c2), x_tr[i_tr].clone(), y_tr[i_tr].clone()])
         tasks_te.append([(c1, c2), x_te[i_te].clone(), y_te[i_te].clone()])
 
 
-    d_tr = tasks_tr
-    d_te = tasks_te
-    n_inputs = d_tr[0][1].size(1)
-    n_outputs = 0
+    d_tr = tasks_tr # 用于训练的数据集
+    d_te = tasks_te # 用于测试的数据集
+    n_inputs = d_tr[0][1].size(1) # 输入特征的数量
+    n_outputs = 0 # 输出类别的数量
     for i in range(len(d_tr)):
         n_outputs = max(n_outputs, d_tr[i][2].max().item())
         n_outputs = max(n_outputs, d_te[i][2].max().item())
-    return d_tr, d_te, n_inputs, n_outputs + 1, len(d_tr)
-
-###############################################################################################################
-
+    print("task num: ", len(d_tr))        
+    return d_tr, d_te, n_inputs, n_outputs + 1

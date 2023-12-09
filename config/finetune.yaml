@@ -5,7 +5,7 @@ includes:
   - headers/optimizer.yaml
   - backbones/resnet12.yaml
 
-data_root: /home/xiongyakun/cifar10
+data_root: /Users/wuchentian/Codes/Python/ML@2023/Lab-Major/LibContinual/data_/cifar10
 image_size: 32
   
 save_path: ./

@@ -1,6 +1,3 @@
-import numpy as np
-
-
 class LinearBuffer:
     def __init__(self, buffer_size, strategy, batch_size):
         
@@ -12,6 +9,3 @@ class LinearBuffer:
 
     def is_empty(self):
         return len(self.labels) == 0
-        
-    
-

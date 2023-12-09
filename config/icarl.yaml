@@ -5,7 +5,7 @@ includes:
   - headers/optimizer.yaml
   - backbones/resnet12.yaml
 
-data_root: D:/codes/NJU/Third_Year/ml/BigHomework/cifar10
+data_root: D:\lesson\机器学习\持续性学习\data\cifar10
 image_size: 32
   
 save_path: ./

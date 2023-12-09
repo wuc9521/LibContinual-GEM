@@ -9,8 +9,7 @@ def random_update(datasets, buffer):
 
     images = np.array(datasets.images + buffer.images)
     labels = np.array(datasets.labels + buffer.labels)
-    # images = np.array(images)
-    # labels = np.array(labels)
+
     perm = np.random.permutation(len(labels))
 
     images, labels = images[perm[:buffer.buffer_size]], labels[perm[:buffer.buffer_size]]

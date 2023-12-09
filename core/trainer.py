@@ -1,7 +1,6 @@
 import os
+import sys
 import torch
-from torch import nn
-from time import time
 from tqdm import tqdm
 from core.data import get_dataloader
 from core.utils import init_seed, AverageMeter, get_instance, GradualWarmupScheduler, count_parameters
@@ -10,9 +9,10 @@ import core.model as arch
 from core.model.buffer import *
 from torch.utils.data import DataLoader
 import numpy as np
-import sys
-from core.utils import Logger, fmt_date_str
-
+from core.model.buffer import LinearBuffer, hearding_update, random_update
+from core.utils import Logger, fmt_date_str, eval_tasks
+from core.data.dataloader import load_datasets
+from core.data.dataset import Continuum
 
 class Trainer(object):
     """
@@ -26,24 +26,16 @@ class Trainer(object):
         self.config = config
         self.config['rank'] = rank
         self.distribute = self.config['n_gpu'] > 1  # 暂时不考虑分布式训练
-        # (
-        #     self.result_path, 
-        #     self.log_path, 
-        #     self.checkpoints_path, 
-        #     self.viz_path
-        # ) = self._init_files(config)                     # todo   add file manage
         self.logger = self._init_logger(config)           
         self.device = self._init_device(config) 
-        # self.writer = self._init_writer(self.viz_path)   # todo   add tensorboard
-        
-        print(self.config)
-
         self.init_cls_num, self.inc_cls_num, self.task_num = self._init_data(config)
-        self.model = self._init_model(config)  # todo add parameter select
+        self.model = self._init_model(config)  # modified by wct
+        self.is_binary = (config['classifier']['name'] == "GEM")  # added by @wct: 如果是GEM模型, 使用的是二进制数据集
+        # @wct: 这里的 _init_* 函数就相当于 Java 里的 new
         (
             self.train_loader,
             self.test_loader,
-        ) = self._init_dataloader(config)
+        ) = self._init_dataloader(config) 
         
         self.buffer = self._init_buffer(config)
         (
@@ -71,13 +63,9 @@ class Trainer(object):
         save_path = config['save_path']
         log_path = os.path.join(save_path, "log")
         if not os.path.isdir(log_path):
-            os.mkdir(log_path)
-        log_prefix = config['classifier']['name'] + "-" + config['backbone']['name'] + "-" + f"epoch{config['epoch']}" #mode
+            os.mkdir(log_path) 
+        log_prefix = config['classifier']['name'] + "-" + config['backbone']['name'] + "-" + f"epoch{config['epoch']}"
         log_file = os.path.join(log_path, "{}-{}.log".format(log_prefix, fmt_date_str()))
-
-        # if not os.path.isfile(log_file):
-        #     os.mkdir(log_file)
-
         logger = Logger(log_file)
 
         # hack sys.stdout
@@ -96,14 +84,11 @@ class Trainer(object):
             device: a device.
         """
         init_seed(config['seed'], config['deterministic'])
-        # os.environ["CUDA_VISIBLE_DEVICES"] = str(config['device_ids'])
-
         device = torch.device("cuda:{}".format(config['device_ids']))
-
         return device
 
 
-    def _init_files(self, config):
+    def _init_files(self, config): 
         pass
 
     def _init_writer(self, config):
@@ -119,13 +104,11 @@ class Trainer(object):
         train_meter = AverageMeter(
             "train",
             ["batch_time", "data_time", "calc_time", "loss", "acc1"],
-            # self.writer,
         )
 
         test_meter = [AverageMeter(
             "test",
             ["batch_time", "data_time", "calc_time", "acc1"],
-            # self.writer,
         ) for _ in range(self.task_num)]
 
         return train_meter, test_meter
@@ -148,22 +131,16 @@ class Trainer(object):
         scheduler = GradualWarmupScheduler(
             optimizer, self.config
         )  # if config['warmup']==0, scheduler will be a normal lr_scheduler, jump into this class for details
-        print(optimizer)
-        
-
-        if 'init_epoch' in config.keys():
-            init_epoch = config['init_epoch']
-        else:
-            init_epoch = config['epoch']
-        
+        init_epoch = config['init_epoch'] if 'init_epoch' in config.keys() else config['epoch']
         return init_epoch, config['epoch'], optimizer, scheduler
 
     def _init_data(self, config):
         return config['init_cls_num'], config['inc_cls_num'], config['task_num']
 
+    # @wct: _init_model() 函数目前看起来没问题了.
     def _init_model(self, config):
         """
-        Init model(backbone+classifier) from the config dict and load the pretrained params or resume from a
+        Init model (backbone + classifier) from the config dict and load the pretrained params or resume from a
         checkpoint, then parallel if necessary .
 
         Args:
@@ -173,14 +150,25 @@ class Trainer(object):
             tuple: A tuple of the model and model's type.
         """
         backbone = get_instance(arch, "backbone", config)
-        dic = {"backbone": backbone, "device": self.device}
+        (   # added by @wct
+            self.x_tr, # @wct: 这里添加了两个成员变量, 反正很丑就是了
+            self.x_te,
+            n_inputs, # 输入特征的数量
+            n_outputs, # 输出类别的数量
+        ) = load_datasets(config) if config['classifier']['name'] == "GEM" else (None, None, None, None)
+        # @wct: 这里写的很丑, 后面改
 
-        model = get_instance(arch, "classifier", config, **dic)
+        dic = {
+            "backbone": backbone, 
+            "device": self.device,
+            "n_inputs": n_inputs, # added by @wct
+            "n_outputs": n_outputs, # added by @wct
+            "task_num": self.task_num, # added by @wct
+        }
+        model = get_instance(arch, "classifier", config, **dic) 
         print(model)
         print("Trainable params in the model: {}".format(count_parameters(model)))
-
-        model = model.to(self.device)
-        return model
+        return model.to(self.device) if config['classifier']['name'] != "GEM" else model # added by @wct
     
     def _init_dataloader(self, config):
         '''
@@ -193,9 +181,17 @@ class Trainer(object):
             train_loaders (list): Each task's train dataloader.
             test_loaders (list): Each task's test dataloader.
         '''
-        train_loaders = get_dataloader(config, "train")
-        test_loaders = get_dataloader(config, "test", cls_map=train_loaders.cls_map)
-
+        train_loaders = get_dataloader(
+            config, 
+            "train", 
+            is_binary=self.is_binary
+        )
+        test_loaders = get_dataloader(
+            config, 
+            "test", 
+            cls_map=(train_loaders.cls_map if config['classifier']['name'] != "GEM" else None), 
+            is_binary=self.is_binary
+        )
         return train_loaders, test_loaders
     
     def _init_buffer(self, config):
@@ -208,72 +204,113 @@ class Trainer(object):
         Returns:
             buffer (Buffer): a buffer for old samples.
         '''
-        buffer = get_instance(arch, "buffer", config)
+        return get_instance(arch, "buffer", config)
 
-        return buffer
-
+    # 主要的函数
     def train_loop(self,):
         """
         The norm train loop:  before_task, train, test, after_task
         """
-        experiment_begin = time()
-        for task_idx in range(self.task_num):
-            print("================Task {} Start!================".format(task_idx))
-            if hasattr(self.model, 'before_task'):
-                self.model.before_task(task_idx, self.buffer, self.train_loader.get_loader(task_idx), self.test_loader.get_loader(task_idx))
-            
-            (
-                _, __,
-                self.optimizer,
-                self.scheduler,
-            ) = self._init_optim(self.config)
+        if self.config['classifier']['name'] == "GEM": # this "if-else" is added by @wct
+            # set up continuum
+            dataloader = Continuum(
+                self.x_tr, 
+                batch_size=self.config['batch_size'], # added by @wct
+                samples_per_task=self.config['samples_per_task'], # added by @wct
+                epoch=self.config['epoch'], # added by @wct
+                task_num=self.task_num # added by @wct
+            )
 
-            self.buffer.total_classes += self.init_cls_num if task_idx == 0 else self.inc_cls_num
+            # load model
+            self.model.cuda()
+            result_a = [] # modified by @wct: 这里原本是life_experience()函数
+            result_t = []
+            log_every = self.config['log_every']
+            current_task = 0
 
-            dataloader = self.train_loader.get_loader(task_idx)
-
-            if isinstance(self.buffer, LinearBuffer) and task_idx != 0:
-                datasets = dataloader.dataset
-                datasets.images.extend(self.buffer.images)
-                datasets.labels.extend(self.buffer.labels)
-                dataloader = DataLoader(
-                    datasets,
-                    shuffle = True,
-                    batch_size = self.config['batch_size'],
-                    drop_last = True
-                )
-            
-            print("================Task {} Training!================".format(task_idx))
-            print("The training samples number: {}".format(len(dataloader.dataset)))
-
-            best_acc = 0.
-            for epoch_idx in range(self.init_epoch if task_idx == 0 else self.inc_epoch):
-                print("learning rate: {}".format(self.scheduler.get_last_lr()))
-                print("================ Train on the train set ================")
-                train_meter = self._train(epoch_idx, dataloader)
-                print("Epoch [{}/{}] |\tLoss: {:.3f} \tAverage Acc: {:.3f} ".format(epoch_idx, self.init_epoch if task_idx == 0 else self.inc_epoch, train_meter.avg('loss'), train_meter.avg("acc1")))
-
-                if (epoch_idx+1) % self.val_per_epoch == 0 or (epoch_idx+1)==self.inc_epoch:
-                    print("================ Test on the test set ================")
-                    test_acc = self._validate(task_idx)
-                    best_acc = max(test_acc["avg_acc"], best_acc)
-                    print(
-                    " * Average Acc: {:.3f} Best acc {:.3f}".format(test_acc["avg_acc"], best_acc)
+            for task_idx in range(self.task_num):
+                print("================Task {} Start!================".format(task_idx))
+                if hasattr(self.model, 'before_task'):
+                    self.model.before_task(
+                        task_idx, 
                     )
-                    print(
-                    " Per-Task Acc:{}".format(test_acc['per_task_acc'])
+
+            for (i, (x, task_idx, y)) in enumerate(tqdm(dataloader, desc='Continuum', leave=True)):
+                if(((i % log_every) == 0) or (task_idx != current_task)):
+                    result_a.append(eval_tasks(self.model, self.x_te))
+                    result_t.append(current_task)
+                    current_task = task_idx
+
+                v_x = x.view(x.size(0), -1).cuda()
+                v_y = y.long().cuda()
+
+                self.model.train()
+                self.model.observe(v_x, task_idx, v_y)
+
+            result_a.append(eval_tasks(self.model, self.x_te))
+            result_t.append(current_task)
+
+            (result_t, result_a) = (torch.Tensor(result_t), torch.Tensor(result_a))
+            print("result_t: {}".format(result_t))
+            print("result_a: {}".format(result_a))
+        
+        else: # this "if-else" is added by @wct
+            for task_idx in range(self.task_num):
+                print("================Task {} Start!================".format(task_idx))
+                if hasattr(self.model, 'before_task'):
+                    self.model.before_task(
+                        task_idx, 
+                        self.buffer, 
+                        self.train_loader.get_loader(task_idx), 
+                        self.test_loader.get_loader(task_idx)
                     )
-            
-                self.scheduler.step()
+                (
+                    _, __,
+                    self.optimizer,
+                    self.scheduler,
+                ) = self._init_optim(self.config)
 
-            if hasattr(self.model, 'after_task'):
-                self.model.after_task(task_idx, self.buffer, self.train_loader.get_loader(task_idx), self.test_loader.get_loader(task_idx))
+                self.buffer.total_classes += self.init_cls_num if task_idx == 0 else self.inc_cls_num
 
+                dataloader = self.train_loader.get_loader(task_idx)
 
-            if self.buffer.strategy == 'herding':
-                hearding_update(self.train_loader.get_loader(task_idx).dataset, self.buffer, self.model.backbone, self.device)
-            elif self.buffer.strategy == 'random':
-                random_update(self.train_loader.get_loader(task_idx).dataset, self.buffer)
+                if isinstance(self.buffer, LinearBuffer) and task_idx != 0:
+                    datasets = dataloader.dataset
+                    datasets.images.extend(self.buffer.images)
+                    datasets.labels.extend(self.buffer.labels)
+                    dataloader = DataLoader(
+                        datasets,
+                        shuffle = True,
+                        batch_size = self.config['batch_size'],
+                        drop_last = True
+                    )
+                
+                print("================Task {} Training!================".format(task_idx))
+                print("The training samples number: {}".format(len(dataloader.dataset)))
+
+                best_acc = 0.
+                for epoch_idx in range(self.init_epoch if task_idx == 0 else self.inc_epoch):
+                    print("learning rate: {}".format(self.scheduler.get_last_lr()))
+                    print("================ Train on the train set ================")
+                    train_meter = self._train(epoch_idx, dataloader)
+                    print("Epoch [{}/{}] |\tLoss: {:.3f} \tAverage Acc: {:.3f} ".format(epoch_idx, self.init_epoch if task_idx == 0 else self.inc_epoch, train_meter.avg('loss'), train_meter.avg("acc1")))
+
+                    if (epoch_idx + 1) % self.val_per_epoch == 0 or (epoch_idx + 1) == self.inc_epoch:
+                        print("================ Test on the test set ================")
+                        test_acc = self._validate(task_idx)
+                        best_acc = max(test_acc["avg_acc"], best_acc)
+                        print(" * Average Acc: {:.3f} Best acc {:.3f}".format(test_acc["avg_acc"], best_acc))
+                        print(" Per-Task Acc:{}".format(test_acc['per_task_acc']))
+                
+                    self.scheduler.step()
+
+                if hasattr(self.model, 'after_task'):
+                    self.model.after_task(task_idx, self.buffer, self.train_loader.get_loader(task_idx), self.test_loader.get_loader(task_idx))
+
+                if self.buffer.strategy == 'herding':
+                    hearding_update(self.train_loader.get_loader(task_idx).dataset, self.buffer, self.model.backbone, self.device)
+                elif self.buffer.strategy == 'random':
+                    random_update(self.train_loader.get_loader(task_idx).dataset, self.buffer)
 
 
 
@@ -295,17 +332,11 @@ class Trainer(object):
         with tqdm(total=len(dataloader)) as pbar:
             for batch_idx, batch in enumerate(dataloader):
                 output, acc, loss = self.model.observe(batch)
-
                 self.optimizer.zero_grad()
-
                 loss.backward()
-
                 self.optimizer.step()
                 pbar.update(1)
-                
                 meter.update("acc1", acc)
-
-
         return meter
 
 
@@ -327,6 +358,3 @@ class Trainer(object):
                 per_task_acc.append(round(meter[t].avg("acc1"), 2))
         
         return {"avg_acc" : np.mean(per_task_acc), "per_task_acc" : per_task_acc}
-    
-
-
