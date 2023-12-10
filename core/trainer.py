@@ -1,18 +1,18 @@
 import os
 import sys
 import torch
-from tqdm import tqdm
-from core.data import get_dataloader
-from core.utils import init_seed, AverageMeter, get_instance, GradualWarmupScheduler, count_parameters
-from core.model.buffer import *
-import core.model as arch
-from core.model.buffer import *
-from torch.utils.data import DataLoader
 import numpy as np
-from core.model.buffer import LinearBuffer, hearding_update, random_update
-from core.utils import Logger, fmt_date_str, eval_tasks
-from core.data.dataloader import load_datasets
+import core.model as arch
+from tqdm import tqdm
+from core.model.buffer import *
 from core.data.dataset import *
+from core.data.dataloader import *
+from core.data import get_dataloader
+from torch.utils.data import DataLoader
+from core.utils import Logger, fmt_date_str, eval_tasks
+from core.model.buffer import LinearBuffer, hearding_update, random_update
+from core.utils import init_seed, AverageMeter, get_instance, GradualWarmupScheduler, count_parameters
+
 
 class Trainer(object):
     """
@@ -30,12 +30,14 @@ class Trainer(object):
         self.device = self._init_device(config) 
         self.init_cls_num, self.inc_cls_num, self.task_num = self._init_data(config)
         self.model = self._init_model(config)  # modified by wct
-        self.is_binary = (config['classifier']['name'] == "GEM")  # added by @wct: 如果是GEM模型, 使用的是二进制数据集
         # @wct: 这里的 _init_* 函数就相当于 Java 里的 new
         (
             self.train_loader,
             self.test_loader,
-        ) = self._init_dataloader(config) 
+        ) = self._init_dataloader(
+            config,
+            "GEM" if (config['classifier']['name'] == "GEM") else None # added by @wct: 如果是GEM模型, 使用的是二进制数据集
+        ) 
         
         self.buffer = self._init_buffer(config) if config['classifier']['name'] != "GEM" else None
         (
@@ -138,12 +140,13 @@ class Trainer(object):
             tuple: A tuple of the model and model's type.
         """
         backbone = get_instance(arch, "backbone", config)
-        (   # added by @wct
-            self.x_tr, # @wct: 这里添加了两个成员变量, 反正很丑就是了
-            self.x_te,
-            n_inputs, # 输入特征的数量
-            n_outputs, # 输出类别的数量
-        ) = load_datasets(config) if config['classifier']['name'] == "GEM" else (None, None, None, None)
+        
+        ( 
+            self.x_tr, n_inputs,
+        ) = load_train_data(config, self.init_cls_num) if config['classifier']['name'] == "GEM" else (None, None)
+        (
+            self.x_te, n_outputs, # 输出类别的数量
+        )= load_test_data(config, self.init_cls_num) if config['classifier']['name'] == "GEM" else (None, None)
         # @wct: 这里写的很丑, 后面改
 
         dic = {
@@ -158,7 +161,10 @@ class Trainer(object):
         print("Trainable params in the model: {}".format(count_parameters(model)))
         return model.to(self.device) if config['classifier']['name'] != "GEM" else model # added by @wct
     
-    def _init_dataloader(self, config):
+    def _init_dataloader(
+            self, config, 
+            model=None #added by @wct
+        ):
         '''
         Init DataLoader
 
@@ -170,15 +176,16 @@ class Trainer(object):
             test_loaders (list): Each task's test dataloader.
         '''
         train_loaders = get_dataloader(
-            config, "train",  is_binary=self.is_binary
+            config, "train", model=model
         )
         test_loaders = get_dataloader(
             config, "test", 
             cls_map=(train_loaders.cls_map if config['classifier']['name'] != "GEM" else None), 
-            is_binary=self.is_binary
+            model=model
         )
         return train_loaders, test_loaders
     
+
     def _init_buffer(self, config): 
         return get_instance(arch, "buffer", config)
 
@@ -189,21 +196,6 @@ class Trainer(object):
         """
         if self.config['classifier']['name'] == "GEM": # this "if-else" is added by @wct
             # set up continuum
-            dataloader = Continuum(
-                self.x_tr, 
-                batch_size=self.config['batch_size'], # added by @wct
-                samples_per_task=self.config['samples_per_task'], # added by @wct
-                epoch=self.config['epoch'], # added by @wct
-                task_num=self.task_num # added by @wct
-            )
-
-            dataloader4index = Continuum4Index(
-                self.x_tr, 
-                batch_size=self.config['batch_size'], # added by @wct
-                samples_per_task=self.config['samples_per_task'], # added by @wct
-                epoch=self.config['epoch'], # added by @wct
-                task_num=self.task_num # added by @wct
-            )
 
             # load model
             self.model.cuda()
@@ -213,6 +205,36 @@ class Trainer(object):
             current_task = 0
             samples_per_task = self.config['samples_per_task']
 
+            # ============================ @wct: don't delete this ============================
+            # dataloader = Continuum(
+            #     self.x_tr, 
+            #     batch_size=self.config['batch_size'], # added by @wct
+            #     samples_per_task=self.config['samples_per_task'], # added by @wct
+            #     epoch=self.config['epoch'], # added by @wct
+            #     task_num=self.task_num # added by @wct
+            # )
+
+            # for (i, (x, task_idx, y)) in enumerate(tqdm(dataloader, desc="Continuum")):
+            #     if(((i % log_every) == 0) or (task_idx != current_task)):
+            #         result_a.append(eval_tasks(self.model, self.x_te))
+            #         result_t.append(current_task)
+            #         current_task = task_idx
+
+            #     v_x = x.view(x.size(0), -1).cuda()
+            #     v_y = y.long().cuda()
+
+            #     self.model.train()
+            #     self.model.observe(v_x, task_idx, v_y)
+
+            # result_a.append(eval_tasks(self.model, self.x_te))
+            # result_t.append(current_task)
+
+            # (result_t, result_a) = (torch.Tensor(result_t), torch.Tensor(result_a))
+            # print("result_t: {}".format(result_t))
+            # print("result_a: {}".format(result_a))
+
+            # ============================ @wct: don't delete this ============================
+
             for task_idx in range(self.task_num):
                 print("================Task {} Start!================".format(task_idx))
                 if hasattr(self.model, 'before_task'):
@@ -220,30 +242,23 @@ class Trainer(object):
                         task_idx, 
                         self.buffer
                     )
-                print(dataloader4index[task_idx])
-                for i in range(samples_per_task):
-                    if (samples_per_task * task_idx + i) % log_every == 0:
-                        result_a.append(eval_tasks(self.model, self.x_te))
-                        result_t.append(task_idx)
-
-                    x, y = dataloader4index[task_idx][i]
-                    v_x = x.view(x.size(0), -1).cuda()
-                    v_y = y.long().cuda()
-
-                    self.model.train()
-                    self.model.observe(v_x, task_idx, v_y)
-
-            for (i, (x, task_idx, y)) in enumerate(tqdm(dataloader, desc="Continuum")):
-                if(((i % log_every) == 0) or (task_idx != current_task)):
-                    result_a.append(eval_tasks(self.model, self.x_te))
-                    result_t.append(current_task)
-                    current_task = task_idx
-
-                v_x = x.view(x.size(0), -1).cuda()
-                v_y = y.long().cuda()
-
-                self.model.train()
-                self.model.observe(v_x, task_idx, v_y)
+                dataloader = self.train_loader.get_loader(task_idx)    
+                # dataloader4index = Continuum4Index(
+                #     self.x_tr, 
+                #     batch_size=self.config['batch_size'], # added by @wct
+                #     samples_per_task=self.config['samples_per_task'], # added by @wct
+                #     epoch=self.config['epoch'], # added by @wct
+                #     task_idx=task_idx # added by @wct
+                # )    
+                # for i in range(samples_per_task):
+                #     if (samples_per_task * task_idx + i) % log_every == 0:
+                #         result_a.append(eval_tasks(self.model, self.x_te))
+                #         result_t.append(task_idx)
+                #     x, y = print(dataloader4index[task_idx])
+                #     v_x = x.view(x.size(0), -1).cuda()
+                #     v_y = y.long().cuda()
+                #     self.model.train()
+                #     self.model.observe(v_x, task_idx, v_y)
 
             result_a.append(eval_tasks(self.model, self.x_te))
             result_t.append(current_task)
@@ -282,10 +297,16 @@ class Trainer(object):
                         batch_size = self.config['batch_size'],
                         drop_last = True
                     )
-                
+                elif isinstance(self.buffer, RingBuffer):
+                    datasets = None
+
+
                 print("================Task {} Training!================".format(task_idx))
                 print("The training samples number: {}".format(len(dataloader.dataset)))
 
+                print("==============================")
+                print(dataloader)
+                print("===============================")
                 best_acc = 0.
                 for epoch_idx in range(self.init_epoch if task_idx == 0 else self.inc_epoch):
                     print("learning rate: {}".format(self.scheduler.get_last_lr()))
