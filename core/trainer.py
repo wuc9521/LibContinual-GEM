@@ -30,13 +30,15 @@ class Trainer(object):
         self.device = self._init_device(config) 
         self.init_cls_num, self.inc_cls_num, self.task_num = self._init_data(config)
         self.is_binary = (config['classifier']['name'] == "GEM")
-        self.model = self._init_model(config)  # modified by wct
+
           # added by @wct: 如果是GEM模型, 使用的是二进制数据集
         # @wct: 这里的 _init_* 函数就相当于 Java 里的 new
         (
             self.train_loader,
             self.test_loader,
-        ) = self._init_dataloader(config) 
+        ) = self._init_dataloader(config)
+
+        self.model = self._init_model(config)  # modified by wct
         
         self.buffer = self._init_buffer(config)
         (
@@ -157,9 +159,8 @@ class Trainer(object):
          # 输入特征的数量
          # 输出类别的数量
 
-        _, self.x_tr, self.x_te, n_inputs, n_outputs= get_dataloader(config,
-                           "train",
-                           is_binary=self.is_binary)
+        n_inputs = self.train_loader.n_inputs if hasattr(self.train_loader, "n_inputs") else 0
+        n_outputs = self.train_loader.n_outputs if hasattr(self.train_loader, "n_outputs") else 0
             #load_datasets(config)) if config['classifier']['name'] == "GEM" else (None, None, None, None)
         # @wct: 这里写的很丑, 后面改
 
@@ -186,12 +187,12 @@ class Trainer(object):
             train_loaders (list): Each task's train dataloader.
             test_loaders (list): Each task's test dataloader.
         '''
-        train_loaders, _, _, _, _ = get_dataloader(
+        train_loaders = get_dataloader(
             config, 
             "train", 
             is_binary=self.is_binary
         )
-        test_loaders, _, _, _, _ = get_dataloader(
+        test_loaders= get_dataloader(
             config, 
             "test", 
             cls_map=(train_loaders.cls_map if config['classifier']['name'] != "GEM" else None), 
@@ -212,19 +213,13 @@ class Trainer(object):
         return get_instance(arch, "buffer", config)
 
     # 主要的函数
-    def train_loop(self,):
+    def train_loop(self):
         """
         The norm train loop:  before_task, train, test, after_task
         """
         if self.config['classifier']['name'] == "GEM": # this "if-else" is added by @wct
             # set up continuum
-            dataloader = Continuum(
-                self.x_tr, 
-                batch_size=self.config['batch_size'], # added by @wct
-                samples_per_task=self.config['samples_per_task'], # added by @wct
-                epoch=self.config['epoch'], # added by @wct
-                task_num=self.task_num # added by @wct
-            )
+            dataloader = self.train_loader
 
             # load model
             self.model.cuda()
@@ -242,7 +237,7 @@ class Trainer(object):
 
             for (i, (x, task_idx, y)) in enumerate(tqdm(dataloader, desc='Continuum', leave=True)):
                 if(((i % log_every) == 0) or (task_idx != current_task)):
-                    result_a.append(eval_tasks(self.model, self.x_te))
+                    result_a.append(eval_tasks(self.model, self.test_loader))
                     result_t.append(current_task)
                     current_task = task_idx
 
@@ -252,7 +247,7 @@ class Trainer(object):
                 self.model.train()
                 self.model.observe(v_x, task_idx, v_y)
 
-            result_a.append(eval_tasks(self.model, self.x_te))
+            result_a.append(eval_tasks(self.model, self.test_loader))
             result_t.append(current_task)
 
             (result_t, result_a) = (torch.Tensor(result_t), torch.Tensor(result_a))

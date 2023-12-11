@@ -71,10 +71,15 @@ class Continuum:
             batch_size, # added by @wct
             samples_per_task, # added by @wct
             epoch, # added by @wct
-            task_num # added by @wct
+            task_num, # added by @wct
+            n_inputs,
+            n_outputs
         ):
         self.data = data
         self.batch_size = batch_size  # batch_size 是每次传递给模型的样本数目
+
+        self.n_inputs = n_inputs
+        self.n_outputs = n_outputs
 
         sample_permutations = [] # 生成任务数据的随机排列
 
