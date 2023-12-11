@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 from core.model.buffer import LinearBuffer, hearding_update, random_update
 from core.utils import Logger, fmt_date_str, eval_tasks
-from core.data.dataloader import load_datasets
+
 from core.data.dataset import Continuum
 
 class Trainer(object):
@@ -29,8 +29,9 @@ class Trainer(object):
         self.logger = self._init_logger(config)           
         self.device = self._init_device(config) 
         self.init_cls_num, self.inc_cls_num, self.task_num = self._init_data(config)
+        self.is_binary = (config['classifier']['name'] == "GEM")
         self.model = self._init_model(config)  # modified by wct
-        self.is_binary = (config['classifier']['name'] == "GEM")  # added by @wct: 如果是GEM模型, 使用的是二进制数据集
+          # added by @wct: 如果是GEM模型, 使用的是二进制数据集
         # @wct: 这里的 _init_* 函数就相当于 Java 里的 new
         (
             self.train_loader,
@@ -150,12 +151,16 @@ class Trainer(object):
             tuple: A tuple of the model and model's type.
         """
         backbone = get_instance(arch, "backbone", config)
-        (   # added by @wct
-            self.x_tr, # @wct: 这里添加了两个成员变量, 反正很丑就是了
-            self.x_te,
-            n_inputs, # 输入特征的数量
-            n_outputs, # 输出类别的数量
-        ) = load_datasets(config) if config['classifier']['name'] == "GEM" else (None, None, None, None)
+           # added by @wct
+         # @wct: 这里添加了两个成员变量, 反正很丑就是了
+
+         # 输入特征的数量
+         # 输出类别的数量
+
+        _, self.x_tr, self.x_te, n_inputs, n_outputs= get_dataloader(config,
+                           "train",
+                           is_binary=self.is_binary)
+            #load_datasets(config)) if config['classifier']['name'] == "GEM" else (None, None, None, None)
         # @wct: 这里写的很丑, 后面改
 
         dic = {
@@ -181,12 +186,12 @@ class Trainer(object):
             train_loaders (list): Each task's train dataloader.
             test_loaders (list): Each task's test dataloader.
         '''
-        train_loaders = get_dataloader(
+        train_loaders, _, _, _, _ = get_dataloader(
             config, 
             "train", 
             is_binary=self.is_binary
         )
-        test_loaders = get_dataloader(
+        test_loaders, _, _, _, _ = get_dataloader(
             config, 
             "test", 
             cls_map=(train_loaders.cls_map if config['classifier']['name'] != "GEM" else None), 

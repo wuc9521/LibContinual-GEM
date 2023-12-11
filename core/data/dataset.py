@@ -34,8 +34,6 @@ class ContinualDatasets:
     def get_loader(self, task_idx):
         assert task_idx >= 0 and task_idx < self.task_num
         return self.dataloaders[task_idx] if self.mode == 'train' else self.dataloaders[:task_idx + 1]
-        
-
 
 class SingleDataset(Dataset):
     def __init__(self, data_root, mode, cls_map, start_idx, end_idx, trfms):
@@ -66,7 +64,6 @@ class SingleDataset(Dataset):
             labels.extend([id for _ in range(len(img_list))])
 
         return imgs, labels
-
 
 class Continuum:
     def __init__(

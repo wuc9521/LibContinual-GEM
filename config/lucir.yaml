@@ -8,14 +8,12 @@ includes:
 
 data_root: D:\lesson/机器学习/持续性学习/data/cifar10
 image_size: 32
-  
 save_path: ./
+
 # data
 init_cls_num: 2
 inc_cls_num: 2
 task_num: 5
-
-
 epoch: 10
 device_ids: 0
 n_gpu: 1
