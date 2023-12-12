@@ -233,7 +233,7 @@ class ResNet(nn.Module):
         pooled = self.avgpool(x_4)  # [bs, 512, 1, 1]
         if self.gem:
             features = pooled.view(pooled.size(0), -1)
-            features = self.linear(features)
+            # features = self.linear(features)
             return features
         features = torch.flatten(pooled, 1)  # [bs, 512]
         # x = self.fc(x)
