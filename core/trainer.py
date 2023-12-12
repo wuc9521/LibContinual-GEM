@@ -1,8 +1,13 @@
+import datetime
 import os
 import sys
+import time
+import uuid
+
 import torch
 from tqdm import tqdm
 from core.data import get_dataloader
+from core.test import confusion_matrix
 from core.utils import init_seed, AverageMeter, get_instance, GradualWarmupScheduler, count_parameters
 from core.model.buffer import *
 import core.model as arch
@@ -228,16 +233,14 @@ class Trainer(object):
             log_every = self.config['log_every']
             current_task = 0
 
+            time_start = time.time()
+
             for task_idx in range(self.task_num):
                 print("================Task {} Start!================".format(task_idx))
                 if hasattr(self.model, 'before_task'):
                     self.model.before_task(
                         task_idx, 
                     )
-
-
-
-
 
 
             for i in tqdm(range(self.task_num),"task_iteration:"):
@@ -258,32 +261,21 @@ class Trainer(object):
                     self.model.train()
                     self.model.observe(v_x, task_idx, v_y)
 
-
-            # for (i, (x, task_idx, y)) in enumerate(tqdm(dataloader, desc='Continuum', leave=True)):
-            #     # print(dataloader.get_loader(i))
-            #
-            #     # print("-----------------")
-            #     # print(i)
-            #     # print(x)
-            #     # print(task_idx)
-            #     # print(y)
-            #     if(((i % log_every) == 0) or (task_idx != current_task)):
-            #         result_a.append(eval_tasks(self.model, self.test_loader))
-            #         result_t.append(current_task)
-            #         current_task = task_idx
-            #
-            #     v_x = x.view(x.size(0), -1).cuda()
-            #     v_y = y.long().cuda()
-            #
-            #     self.model.train()
-            #     self.model.observe(v_x, task_idx, v_y)
+            time_end = time.time()
 
             result_a.append(eval_tasks(self.model, self.test_loader))
             result_t.append(current_task)
 
             (result_t, result_a) = (torch.Tensor(result_t), torch.Tensor(result_a))
-            print("result_t: {}".format(result_t))
-            print("result_a: {}".format(result_a))
+
+            timespent = time_end - time_start
+
+
+            stats = confusion_matrix(result_t, result_a)
+            # one_liner = ''.join(["%.3f" % stat for stat in stats])
+            # print('result' + ': ' + one_liner + ' # ' + str(timespent))
+            # print("result_t: {}".format(result_t))
+            # print("result_a: {}".format(result_a))
         
         else: # this "if-else" is added by @wct
             for task_idx in range(self.task_num):
