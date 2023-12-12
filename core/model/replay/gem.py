@@ -112,9 +112,9 @@ class GEM(nn.Module):
         self.mem_cnt = 0
         self.nc_per_task = int(n_outputs / task_num)
 
-    def before_task(self, task_idx):
-        # 不如在before_task这个地方把Continuum的数据加载进来
-        pass
+    # def before_task(self, task_idx):
+    #     # 不如在before_task这个地方把Continuum的数据加载进来
+    #     pass
 
     def forward(self, x, task_idx):
         output = self.net(x)

@@ -192,7 +192,7 @@ class Trainer(object):
             "train", 
             is_binary=self.is_binary
         )
-        test_loaders= get_dataloader(
+        test_loaders = get_dataloader(
             config, 
             "test", 
             cls_map=(train_loaders.cls_map if config['classifier']['name'] != "GEM" else None), 
@@ -235,17 +235,48 @@ class Trainer(object):
                         task_idx, 
                     )
 
-            for (i, (x, task_idx, y)) in enumerate(tqdm(dataloader, desc='Continuum', leave=True)):
-                if(((i % log_every) == 0) or (task_idx != current_task)):
-                    result_a.append(eval_tasks(self.model, self.test_loader))
-                    result_t.append(current_task)
-                    current_task = task_idx
 
-                v_x = x.view(x.size(0), -1).cuda()
-                v_y = y.long().cuda()
 
-                self.model.train()
-                self.model.observe(v_x, task_idx, v_y)
+
+
+
+            for i in tqdm(range(self.task_num),"task_iteration:"):
+
+                x, task_idx, y = dataloader.get_loader(i)
+
+                result_a.append(eval_tasks(self.model, self.test_loader))
+                result_t.append(current_task)
+                current_task = task_idx
+
+                for j in tqdm(range(0, len(y), self.val_per_epoch),"interTask_iteration:"):
+                    _x = x[j : j+ self.val_per_epoch]
+                    _y = y[j : j+ self.val_per_epoch]
+
+                    v_x = _x.view(_x.size(0), -1).cuda()
+                    v_y = _y.long().cuda()
+
+                    self.model.train()
+                    self.model.observe(v_x, task_idx, v_y)
+
+
+            # for (i, (x, task_idx, y)) in enumerate(tqdm(dataloader, desc='Continuum', leave=True)):
+            #     # print(dataloader.get_loader(i))
+            #
+            #     # print("-----------------")
+            #     # print(i)
+            #     # print(x)
+            #     # print(task_idx)
+            #     # print(y)
+            #     if(((i % log_every) == 0) or (task_idx != current_task)):
+            #         result_a.append(eval_tasks(self.model, self.test_loader))
+            #         result_t.append(current_task)
+            #         current_task = task_idx
+            #
+            #     v_x = x.view(x.size(0), -1).cuda()
+            #     v_y = y.long().cuda()
+            #
+            #     self.model.train()
+            #     self.model.observe(v_x, task_idx, v_y)
 
             result_a.append(eval_tasks(self.model, self.test_loader))
             result_t.append(current_task)

@@ -77,7 +77,7 @@ class Continuum:
         ):
         self.data = data
         self.batch_size = batch_size  # batch_size 是每次传递给模型的样本数目
-
+        self.epoch = epoch
         self.n_inputs = n_inputs
         self.n_outputs = n_outputs
 
@@ -89,21 +89,40 @@ class Continuum:
             p = torch.randperm(N)[0:n]
             sample_permutations.append(p)
 
-        # sample_permulations 总共有10个任务，每个任务是一个长度为 2500 的随机排列
+
+        # sample_permulations 总共有20个任务，每个任务是一个长度为 2500 的随机排列
         self.permutation = []
-        for task_idx in range(task_num): # 10
+        for task_idx in range(task_num): # 20
             for _ in range(epoch): # 10
                 task_p = [[task_idx, i] for i in sample_permutations[task_idx]] # 2500
                 random.shuffle(task_p) # 随机打乱列表的元素顺序
                 self.permutation += task_p
 
+
+        # print(sample_permutations)
+        # print(self.permutation)
+
         self.length = len(self.permutation)
+        #print(self.length)
         self.current = 0
 
     def __iter__(self): return self
 
     def next(self): return self.__next__()
 
+    def get_loader(self, task_idx):
+
+        current = task_idx * self.epoch * self.data[0][1].size(0)
+        ti = self.permutation[current][0]
+
+        j = []
+        i = 0
+        for i in range(self.epoch * self.data[0][1].size(0)):
+            j.append(self.permutation[current + i][1])
+
+
+        j = torch.LongTensor(j)
+        return self.data[ti][1][j], ti, self.data[ti][2][j]
     def __next__(self):
         if self.current >= self.length:
             raise StopIteration
