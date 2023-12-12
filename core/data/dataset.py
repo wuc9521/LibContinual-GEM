@@ -62,12 +62,11 @@ class ContinualDatasets:
                     SingleContinuum(
                         data=self.data, 
                         batch=self.batch_size, 
-                        samples_per_task=self.samples_per_task, 
-                        epoch=self.epoch,
                         task_idx=task_idx
                     ),
                     shuffle=True,
-                    batch_size=self.batch_size
+                    batch_size=self.batch_size,
+                    drop_last=True
                 )
             )    
 
@@ -112,7 +111,7 @@ class SingleDataset(Dataset):
 
 
 # ==================== GEM ==================== # added by @wct
-class SingleContinuum(Dataset): 
+class SingleContinuumTimesEpoch(Dataset): 
     def __init__(self, data, batch, samples_per_task, epoch, task_idx) -> None:
         super().__init__()
         self.data = data
@@ -151,6 +150,28 @@ class SingleContinuum(Dataset):
 
         self.length = len(self.permutation)
 
+class SingleContinuum(Dataset): 
+    def __init__(self, data, batch, task_idx) -> None:
+        super().__init__()
+        self.data = data
+        self.batch = batch
+        self.task_idx = task_idx
+        self._init_datalist()
+
+    def __getitem__(self, index): 
+        return (
+            self.data[self.task_idx][1][index], 
+            self.data[self.task_idx][2][index]
+        )
+
+    def __len__(self,): return self.length
+
+    # data 是长度为 task_num=20 的数组, 每个元素是长度为3的数组, 其中第二个和第三个元素分别是数据和标签, 长度都是2500
+    def _init_datalist(self):
+        task_idx = self.task_idx
+        N = self.data[task_idx][1].size(0)
+        p = torch.randperm(N) # p 是一个长度为 2500 的随机排列
+        self.length = len(p)
 
 class Continuum:
     def __init__(

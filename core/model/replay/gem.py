@@ -128,7 +128,7 @@ class GEM(nn.Module):
             output[:, offset2:self.n_outputs].data.fill_(-10e10)
         return output
 
-    def observe(self, x, task_idx, y): # TODO: observe函数要把task_idx分开, 作为类的成员变量.
+    def observeGEM(self, x, task_idx, y):
         # update memory
         if task_idx != self.old_task:
             self.observed_tasks.append(task_idx)
@@ -174,6 +174,63 @@ class GEM(nn.Module):
         # check if gradient violates constraints
         if len(self.observed_tasks) > 1:
             # copy gradient
+            store_grad(self.parameters, self.grads, self.grad_dims, task_idx)
+            indx = torch.cuda.LongTensor(self.observed_tasks[:-1])
+            dotp = torch.mm(self.grads[:, task_idx].unsqueeze(0), self.grads.index_select(1, indx))
+            if (dotp < 0).sum() != 0:
+                project2cone2(self.grads[:, task_idx].unsqueeze(1), self.grads.index_select(1, indx), self.margin)
+                # copy gradients back
+                overwrite_grad(self.parameters, self.grads[:, task_idx], self.grad_dims)
+        self.opt.step()
+
+    def observe(self, data): # TODO: observe函数要把task_idx分开, 作为类的成员变量.
+        self.observe_(data)
+
+    def observe_(self, data):
+        # Update ring buffer storing examples from current task
+        x = data[0]
+        x = x.view(x.size(0), -1).cuda()
+        y = data[1]
+        y = y.long().cuda()
+        task_idx = 1
+
+        bsz = y.data.size(0)
+        endcnt = min(self.mem_cnt + bsz, self.n_memories)
+        effbsz = endcnt - self.mem_cnt
+        self.memory_data[task_idx, self.mem_cnt: endcnt].copy_(x.data[: effbsz])
+        if bsz == 1:
+            self.memory_labs[task_idx, self.mem_cnt] = y.data[0]
+        else:
+            self.memory_labs[task_idx, self.mem_cnt: endcnt].copy_(y.data[: effbsz])
+        self.mem_cnt += effbsz
+        if self.mem_cnt == self.n_memories: self.mem_cnt = 0
+
+        # compute gradient on previous tasks
+        if len(self.observed_tasks) > 1:
+            for tt in range(len(self.observed_tasks) - 1):
+                self.zero_grad() # fwd/bwd on the examples in the memory
+                past_task = self.observed_tasks[tt]
+
+                offset1, offset2 = compute_offsets(
+                    past_task, 
+                    self.nc_per_task
+                )
+                ptloss = self.ce(
+                    self.forward(self.memory_data[past_task], past_task)[:, offset1: offset2],
+                    self.memory_labs[past_task] - offset1
+                )
+                ptloss.backward()
+                store_grad(self.parameters, self.grads, self.grad_dims, past_task)
+
+        # now compute the grad on the current minibatch
+        self.zero_grad()
+
+        offset1, offset2 = compute_offsets(task_idx, self.nc_per_task)
+        loss = self.ce(self.forward(x, task_idx)[:, offset1: offset2], y - offset1)
+        loss.backward()
+
+        # check if gradient violates constraints
+        if len(self.observed_tasks) > 1: # copy gradient
             store_grad(self.parameters, self.grads, self.grad_dims, task_idx)
             indx = torch.cuda.LongTensor(self.observed_tasks[:-1])
             dotp = torch.mm(self.grads[:, task_idx].unsqueeze(0), self.grads.index_select(1, indx))

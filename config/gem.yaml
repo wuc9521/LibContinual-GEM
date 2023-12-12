@@ -4,7 +4,6 @@ includes:
   - headers/model.yaml
   - headers/optimizer.yaml
 
-# data_root: /home/featurize/work/data/cifar10
 data_root: D:\lesson\机器学习\持续性学习\data\cifar100-binary
 image_size: 32
 save_path: ./
@@ -20,7 +19,6 @@ cuda: yes
 log_every: 100
 data_file: cifar100.pt
 samples_per_task: 2500
-
 
 optimizer:
   name: SGD

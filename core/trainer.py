@@ -159,7 +159,7 @@ class Trainer(object):
         model = get_instance(arch, "classifier", config, **dic) 
         print(model)
         print("Trainable params in the model: {}".format(count_parameters(model)))
-        return model.to(self.device) if config['classifier']['name'] != "GEM" else model # added by @wct
+        return model.to(self.device)
     
     def _init_dataloader(
             self, config, 
@@ -234,6 +234,11 @@ class Trainer(object):
             # print("result_a: {}".format(result_a))
 
             # ============================ @wct: don't delete this ============================
+            (
+                _, _,
+                self.optimizer,
+                self.scheduler,
+            ) = self._init_optim(self.config)
 
             for task_idx in range(self.task_num):
                 print("================Task {} Start!================".format(task_idx))
@@ -242,7 +247,22 @@ class Trainer(object):
                         task_idx, 
                         self.buffer
                     )
-                dataloader = self.train_loader.get_loader(task_idx)    
+                dataloader = self.train_loader.get_loader(task_idx) 
+                for epoch_idx in range(self.init_epoch if task_idx == 0 else self.inc_epoch):
+                    print("learning rate: {}".format(self.scheduler.get_last_lr()))
+                    print("================ Train on the train set ================")
+                    
+                    train_meter = self._train(epoch_idx, dataloader)
+                    print("Epoch [{}/{}] |\tLoss: {:.3f} \tAverage Acc: {:.3f} ".format(epoch_idx, self.init_epoch if task_idx == 0 else self.inc_epoch, train_meter.avg('loss'), train_meter.avg("acc1")))
+
+                    if (epoch_idx + 1) % self.val_per_epoch == 0 or (epoch_idx + 1) == self.inc_epoch:
+                        print("================ Test on the test set ================")
+                        test_acc = self._validate(task_idx)
+                        best_acc = max(test_acc["avg_acc"], best_acc)
+                        print(" * Average Acc: {:.3f} Best acc {:.3f}".format(test_acc["avg_acc"], best_acc))
+                        print(" Per-Task Acc:{}".format(test_acc['per_task_acc']))
+                
+                    self.scheduler.step()
                 # dataloader4index = Continuum4Index(
                 #     self.x_tr, 
                 #     batch_size=self.config['batch_size'], # added by @wct
@@ -254,7 +274,6 @@ class Trainer(object):
                 #     if (samples_per_task * task_idx + i) % log_every == 0:
                 #         result_a.append(eval_tasks(self.model, self.x_te))
                 #         result_t.append(task_idx)
-                #     x, y = print(dataloader4index[task_idx])
                 #     v_x = x.view(x.size(0), -1).cuda()
                 #     v_y = y.long().cuda()
                 #     self.model.train()
@@ -277,11 +296,6 @@ class Trainer(object):
                         self.train_loader.get_loader(task_idx),
                         self.test_loader.get_loader(task_idx)
                     )
-                (
-                    _, __,
-                    self.optimizer,
-                    self.scheduler,
-                ) = self._init_optim(self.config)
 
                 self.buffer.total_classes += self.init_cls_num if task_idx == 0 else self.inc_cls_num
 
@@ -304,9 +318,6 @@ class Trainer(object):
                 print("================Task {} Training!================".format(task_idx))
                 print("The training samples number: {}".format(len(dataloader.dataset)))
 
-                print("==============================")
-                print(dataloader)
-                print("===============================")
                 best_acc = 0.
                 for epoch_idx in range(self.init_epoch if task_idx == 0 else self.inc_epoch):
                     print("learning rate: {}".format(self.scheduler.get_last_lr()))
@@ -342,13 +353,14 @@ class Trainer(object):
 
         Returns:
             dict:  {"avg_acc": float}
-        """
+        """ 
         self.model.train()
         meter = self.train_meter
         meter.reset()
-        
+
         with tqdm(total=len(dataloader)) as pbar:
             for batch_idx, batch in enumerate(dataloader):
+                # 对于 GEM, 总共有 250 个 batch
                 output, acc, loss = self.model.observe(batch)
                 self.optimizer.zero_grad()
                 loss.backward()
