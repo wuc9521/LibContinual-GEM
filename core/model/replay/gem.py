@@ -93,7 +93,7 @@ class GEM(nn.Module):
         self.margin = memory_strength
 
         # self.net = ResNet18(n_outputs) # modified by @lyl
-        self.net = resnet18(num_classes=n_outputs, inplanes=20, args={"dataset": ['cifar']}) # added by @lyl
+        self.net = resnet18(num_classes=n_outputs, inplanes=20, args={"dataset": ['cifar']}, gem=True) # added by @lyl
         
         self.ce = nn.CrossEntropyLoss()
         self.n_outputs = n_outputs

@@ -266,7 +266,7 @@ class Trainer(object):
                         self.test_loader.get_loader(task_idx)
                     )
                 (
-                    _, __,
+                    _, _,
                     self.optimizer,
                     self.scheduler,
                 ) = self._init_optim(self.config)

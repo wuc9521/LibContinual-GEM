@@ -126,12 +126,12 @@ class Bottleneck(nn.Module):
 class ResNet(nn.Module):
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
                  inplanes=64,groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None,args=None): # modified by @lyl
+                 norm_layer=None,args=None, gem=False): # modified by @lyl
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
-
+        self.gem = gem
         # self.inplanes = 64
         self.inplanes = inplanes # modified by @lyl
         self.dilation = 1
@@ -144,7 +144,7 @@ class ResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        
+        self.linear = nn.Linear(inplanes * 8 * block.expansion, num_classes) # added by @lyl
         assert args is not None, "you should pass args to resnet"
         if 'cifar' in args["dataset"]:
             self.conv1 = nn.Sequential(nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False),
@@ -219,7 +219,9 @@ class ResNet(nn.Module):
     def _forward_impl(self, x):
         # See note [TorchScript super()]
         # print(x)
-        bsz = x.size(0) #added by @lyl
+        if self.gem:
+            bsz = x.size(0) #added by @lyl
+            x = x.view(bsz, 3, 32, 32)
         x = self.conv1(x)  # [bs, 64, 32, 32]
         # x = self.conv1(x.view(bsz,3,32,32)) # added by @lyl
 
@@ -229,6 +231,10 @@ class ResNet(nn.Module):
         x_4 = self.layer4(x_3)  # [bs, 512, 4, 4]
 
         pooled = self.avgpool(x_4)  # [bs, 512, 1, 1]
+        if self.gem:
+            features = pooled.view(pooled.size(0), -1)
+            # features = self.linear(features)
+            return features
         features = torch.flatten(pooled, 1)  # [bs, 512]
         # x = self.fc(x)
 
