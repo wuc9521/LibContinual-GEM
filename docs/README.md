@@ -139,3 +139,121 @@ A framework of Continual Learning
    ```
 
    
+
+
+# LibContinual-GEM
+Coursework (GEM, LCL8) of Introduction to Machine Learning, Software Institute, Nanjng University
+
+
+# CIFAR100 数据的细节
+```python
+print("i: {}, task_idx: {}".format(i, task_idx))
+```
+通过这行看到, 每2500个循环是一个task. 这和论文是匹配的.
+[这篇文章](https://blog.csdn.net/nyist_yangguang/article/details/126077044)介绍了二进制的cifar100数据集.
+
+
+# TODO
+- [x] 能够运行代码
+- [x] `n_task`变量转换成`task_num`, `t`变量转换成`task_idx`
+- [x] 消除`life_experience()`函数
+- [ ] 进一步地整合参数
+- [ ] 重新考虑是否有办法不消除continuum, 而是让使用者感受不到它的存在, 比如说加到 `GEM.before_task()` 里面
+- [ ] 将 `class GEM` 的 `__init__()` 函数和 `observe()` 函数中的数据存储部分抽象成RingBuffer类.
+- [ ] 将 `class BasicBloc4GEM` 消除, 和上面的 `class BasicBlock` 合并. 类似地消除 `ResNet18`, 和上面的 `resnet18` 合并 (这一部分难度较大)
+
+
+# migration form BasicBlack4GEM to  BasicBlock
+## previous params
+- in_planes -> inplanes  输入维度
+- planes -> planes  输出维度
+- stride -> stride 卷积核滑动时的步长
+## newly added params
+- downSample:  下采样器
+  ``` python
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_planes != self.expansion * planes:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_planes, self.expansion * planes, kernel_size=1,
+                          stride=stride, bias=False),
+                nn.BatchNorm2d(self.expansion * planes)
+            )
+  ```
+  这个部分GEM直接写在Block里，助教的代码则是在ResNet里初始化并且通过downSample参数传给Block
+- groups: 只能是1 采用默认值
+- base_width: 只能是64 采用默认值
+- dialation: 暂时还没看到使用
+- norm_layer: 如果什么都不填，就会初始化为 `nn.BatchNorm2d(planes)` 正好就是GEM需要的layers
+
+# migration from ResNet4GEM to Resnet
+## previous params
+- num_blocks -> layers 每个阶段包含的残差块数量，都是[2,2,2,2]
+- nclasses -> num_classes 这个值在助教的代码中没有被用到，在GEM中作为最后Linear层的输出维度，应该是最后可能有哪些类别？
+- 
+## added params
+- inplanes: 原来的框架直接赋值64，GEM直接赋值20
+### 迁移时一些不好合并的差别
+- 助教给出的ResNet中有这样一段：
+  ``` python
+    self.conv1 = nn.Sequential(nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False),nn.BatchNorm2d(self.inplanes), nn.ReLU(inplace=True))
+  ```
+  这比GEM多了一层ReLU
+  GEM的代码是：
+  ``` python
+    self.conv1 = conv3x3(3, nf * 1)
+    self.bn1 = nn.BatchNorm2d(nf * 1)
+  ```
+- 助教给出的代码添加了一个池化层
+  ``` python
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
+        dilate=replace_stride_with_dilation[0])
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
+        dilate=replace_stride_with_dilation[1])
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
+        dilate=replace_stride_with_dilation[2])
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+  ```
+  GEM多了一个Linear层,并且通过内置的avg_pool2d来调用池化函数,助教的代码没有Linear，但是通过 features = torch.flatten(pooled, 1)进行了降维?
+  ``` python 
+        self.layer1 = self._make_layer(block, nf * 1, num_blocks[0], stride=1)
+        self.layer2 = self._make_layer(block, nf * 2, num_blocks[1], stride=2)
+        self.layer3 = self._make_layer(block, nf * 4, num_blocks[2], stride=2)
+        self.layer4 = self._make_layer(block, nf * 8, num_blocks[3], stride=2)
+        self.linear = nn.Linear(nf * 8 * block.expansion, num_classes)
+  ```
+
+# 数据预处理
+
+本次数据预处理工作主要改动了两个文件：
+
+- 添加gem.yaml
+- 修改dataloader.py
+
+
+
+关于gem.yaml:
+
+- 首先是yaml并没有严格的语法规则，可以理解为暂存常用变量的文件，所以yaml添加的都是在lcl-8-reproduction-main中的命令行参数（具体调用方法比如：n_task = config['task_num'],task_num为yaml文件中的声明task_num: 10）
+
+- yaml中没有放入的参数：
+
+  - 相关.pt文件路径，由于原项目中数据处理的逻辑整合在了一起，省去了文件之间相互调用.pt文件，故省略
+  - cuda参数，后续移植可能遇到，由于只使用CIFAR数据集，默认为yes
+
+
+
+关于dataloader.py:
+- 原dataloader的逻辑不完善! 不完善! 不完善! 这就是为什么助教说
+
+  >大家在复现各自方法的时候，需要什么transform可以直接修改./core/data/dataloader.py
+
+  本来尝试将数据处理的逻辑嵌入到原本的dataloader.get_dataloader()中去,发现完全行不通(这也可能是为什么ICARL的复现样例未跑通)
+
+  所以另建了一个get_data_in_gem的函数...
+
+- 调取处理完的数据直接使用
+  
+  >dataloader.get_data_in_gem(config)
+
+  该函数的具体返回值以及使用参照lcl-8-reproduction-main中main.py的217行
