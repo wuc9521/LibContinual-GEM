@@ -236,7 +236,7 @@ class Trainer(object):
             time_start = time.time()
 
             for task_idx in range(self.task_num):
-                print("================Task {} Start!================".format(task_idx))
+                # print("================Task {} Start!================".format(task_idx))
                 if hasattr(self.model, 'before_task'):
                     self.model.before_task(
                         task_idx, 
@@ -246,12 +246,12 @@ class Trainer(object):
             for i in tqdm(range(self.task_num),"task_iteration:"):
 
                 x, task_idx, y = dataloader.get_loader(i)
-
+                print("================Task {} Start!================".format(task_idx))
                 result_a.append(eval_tasks(self.model, self.test_loader))
                 result_t.append(current_task)
                 current_task = task_idx
 
-                for j in tqdm(range(0, len(y), self.val_per_epoch),"interTask_iteration:"):
+                for j in tqdm(range(0, len(y), self.val_per_epoch), "interTask_iteration:"):
                     _x = x[j : j+ self.val_per_epoch]
                     _y = y[j : j+ self.val_per_epoch]
 
@@ -272,12 +272,15 @@ class Trainer(object):
 
 
             stats = confusion_matrix(result_t, result_a)
-            # one_liner = ''.join(["%.3f" % stat for stat in stats])
-            # print('result' + ': ' + one_liner + ' # ' + str(timespent))
-            # print("result_t: {}".format(result_t))
-            # print("result_a: {}".format(result_a))
+            print(stats.get('fin'))
+            print(stats.get('fwt'))
+            print(stats.get('bwt'))
+            one_liner = ''.join(["%.3f" % stat for stat in stats])
+            print('result' + ': ' + one_liner + ' # ' + str(timespent))
+            print("result_t: {}".format(result_t))
+            print("result_a: {}".format(result_a))
         
-        else: # this "if-else" is added by @wct
+        else:
             for task_idx in range(self.task_num):
                 print("================Task {} Start!================".format(task_idx))
                 if hasattr(self.model, 'before_task'):

@@ -1,5 +1,3 @@
-# 原本的metrics.py文件中的函数都被移动到这里了.
-# 用于评估模型的效果.
 from __future__ import print_function
 import torch
 
@@ -17,40 +15,23 @@ def task_changes(result_t):
 
 def confusion_matrix(result_t, result_a, fname=None):
     nt, changes = task_changes(result_t)
-
     baseline = result_a[0]
     changes = torch.LongTensor(changes + [result_a.size(0)]) - 1
     result = result_a[changes]
-
-    # acc[t] equals result[t,t]
     acc = result.diag()
     fin = result[nt - 1]
-    # bwt[t] equals result[T,t] - acc[t]
     bwt = result[nt - 1] - acc
-
-    # fwt[t] equals result[t-1,t] - baseline[t]
     fwt = torch.zeros(nt)
     for t in range(1, nt):
         fwt[t] = result[t - 1, t] - baseline[t]
-
-    # if fname is not None:
-    #     f = open(fname, 'w')
-
-        # print(' '.join(['%.4f' % r for r in baseline]), file=f)
-        # print('|', file=f)
-        # for row in range(result.size(0)):
-        #     print(' '.join(['%.4f' % r for r in result[row]]), file=f)
-        # print('', file=f)
-        # print('Diagonal Accuracy: %.4f' % acc.mean(), file=f)
     print('Final Accuracy: %.4f' % fin.mean())
     print('Backward: %.4f' % bwt.mean())
     print('Forward:  %.4f' % fwt.mean())
-        # f.close()
 
-    stats = []
+    stats = {}
     # stats.append(acc.mean())
-    stats.append(fin.mean())
-    stats.append(bwt.mean())
-    stats.append(fwt.mean())
+    stats['fin'] = fin.mean()
+    stats['bwt'] = bwt.mean()
+    stats['fwt'] = fwt.mean()
 
     return stats

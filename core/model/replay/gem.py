@@ -126,7 +126,7 @@ class GEM(nn.Module):
             output[:, offset2:self.n_outputs].data.fill_(-10e10)
         return output
 
-    def observe(self, x, task_idx, y): # TODO: observe函数要把task_idx分开, 作为类的成员变量.
+    def observe(self, x, task_idx, y):
         # update memory
         if task_idx != self.old_task:
             self.observed_tasks.append(task_idx)
