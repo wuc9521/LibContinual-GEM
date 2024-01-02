@@ -25,10 +25,14 @@ class CosineLinear(nn.Module):
             self.sigma.data.fill_(1) #for initializaiton of sigma
 
     def forward(self, input):
-        out = F.linear(
-            F.normalize(input, p=2,dim=1), 
-            F.normalize(self.weight, p=2, dim=1)
-        )
+        #w_norm = self.weight.data.norm(dim=1, keepdim=True)
+        #w_norm = w_norm.expand_as(self.weight).add_(self.epsilon)
+        #x_norm = input.data.norm(dim=1, keepdim=True)
+        #x_norm = x_norm.expand_as(input).add_(self.epsilon)
+        #w = self.weight.div(w_norm)
+        #x = input.div(x_norm)
+        out = F.linear(F.normalize(input, p=2,dim=1), \
+                F.normalize(self.weight, p=2, dim=1))
         if self.sigma is not None:
             out = self.sigma * out
         return out
@@ -127,6 +131,12 @@ class LUCIR(Finetune):
             self.handle_cur_features = self.classifier.register_forward_hook(get_cur_features)
             self.handle_old_scores_bs = self.classifier.fc1.register_forward_hook(get_old_scores_before_scale)
             self.handle_new_scores_bs = self.classifier.fc2.register_forward_hook(get_new_scores_before_scale)
+            # num_old_classes = self.ref_model.fc.out_features
+            # handle_ref_features = self.ref_model.fc.register_forward_hook(get_ref_features)
+            # handle_cur_features = self.classifier.register_forward_hook(get_cur_features)
+            # handle_old_scores_bs = self.classifier.fc1.register_forward_hook(get_old_scores_before_scale)
+            # handle_new_scores_bs = self.classifier.fc2.register_forward_hook(get_new_scores_before_scale)
+        # update optimizer  todo
 
     def observe(self, data):
         x, y = data['image'], data['label']
@@ -138,6 +148,7 @@ class LUCIR(Finetune):
         if self.task_idx == 0:
             loss = self.loss_fn(logit, y)
         else:
+            ref_outputs = self.ref_model(x)
             loss = self.loss_fn1(cur_features, ref_features.detach(), \
                     torch.ones(x.size(0)).to(self.device))
             

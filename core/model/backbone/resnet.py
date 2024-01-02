@@ -1,13 +1,17 @@
+'''
+Reference:
+https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
+'''
 import torch
 import torch.nn as nn
-from torch.nn.functional import relu, avg_pool2d
-
 try:
     from torchvision.models.utils import load_state_dict_from_url
 except:
     from torch.hub import load_state_dict_from_url
 
-__all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152', 'resnext50_32x4d', 'resnext101_32x8d', 'wide_resnet50_2', 'wide_resnet101_2']
+__all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
+           'resnet152', 'resnext50_32x4d', 'resnext101_32x8d',
+           'wide_resnet50_2', 'wide_resnet101_2']
 
 
 model_urls = {
@@ -75,7 +79,6 @@ class BasicBlock(nn.Module):
         return out
 
 
-
 class Bottleneck(nn.Module):
     expansion = 4
     __constants__ = ['downsample']
@@ -124,16 +127,16 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
+
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
-                 inplanes=64,groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None,args=None, gem=False): # modified by @lyl
+                 groups=1, width_per_group=64, replace_stride_with_dilation=None,
+                 norm_layer=None,args=None):
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
-        self.gem = gem
-        # self.inplanes = 64
-        self.inplanes = inplanes # modified by @lyl
+
+        self.inplanes = 64
         self.dilation = 1
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
@@ -144,7 +147,7 @@ class ResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        self.linear = nn.Linear(inplanes * 8 * block.expansion, num_classes) # added by @lyl
+        
         assert args is not None, "you should pass args to resnet"
         if 'cifar' in args["dataset"]:
             self.conv1 = nn.Sequential(nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False),
@@ -165,18 +168,17 @@ class ResNet(nn.Module):
                     nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
                 )
 
-        # modyfied by @lyl
-        self.layer1 = self._make_layer(block, self.inplanes*1, layers[0])
-        self.layer2 = self._make_layer(block, self.inplanes*2, layers[1], stride=2,
+
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
                                        dilate=replace_stride_with_dilation[0])
-        self.layer3 = self._make_layer(block, self.inplanes*4, layers[2], stride=2,
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
                                        dilate=replace_stride_with_dilation[1])
-        self.layer4 = self._make_layer(block, self.inplanes*8, layers[3], stride=2,
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
-        # @lyl: GEM这里还有一个Linear层，没有AvgPool
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        # self.out_dim = 512 * block.expansion
-        self.out_dim = self.inplanes*8 * block.expansion #added by @lyl
+        self.out_dim = 512 * block.expansion
+        # self.fc = nn.Linear(512 * block.expansion, num_classes)  # Removed in _forward_impl
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -185,6 +187,9 @@ class ResNet(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
+        # Zero-initialize the last BN in each residual branch,
+        # so that the residual branch starts with zeros, and each residual block behaves like an identity.
+        # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
         if zero_init_residual:
             for m in self.modules():
                 if isinstance(m, Bottleneck):
@@ -218,12 +223,7 @@ class ResNet(nn.Module):
 
     def _forward_impl(self, x):
         # See note [TorchScript super()]
-        # print(x)
-        if self.gem:
-            bsz = x.size(0) #added by @lyl
-            x = x.view(bsz, 3, 32, 32)
         x = self.conv1(x)  # [bs, 64, 32, 32]
-        # x = self.conv1(x.view(bsz,3,32,32)) # added by @lyl
 
         x_1 = self.layer1(x)  # [bs, 128, 32, 32]
         x_2 = self.layer2(x_1)  # [bs, 256, 16, 16]
@@ -231,10 +231,6 @@ class ResNet(nn.Module):
         x_4 = self.layer4(x_3)  # [bs, 512, 4, 4]
 
         pooled = self.avgpool(x_4)  # [bs, 512, 1, 1]
-        if self.gem:
-            features = pooled.view(pooled.size(0), -1)
-            # features = self.linear(features)
-            return features
         features = torch.flatten(pooled, 1)  # [bs, 512]
         # x = self.fc(x)
 
@@ -257,91 +253,62 @@ class ResNet(nn.Module):
 def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     model = ResNet(block, layers, **kwargs)
     if pretrained:
-        state_dict = load_state_dict_from_url(model_urls[arch], progress=progress)
+        state_dict = load_state_dict_from_url(model_urls[arch],
+                                              progress=progress)
         model.load_state_dict(state_dict)
     return model
 
-def resnet18(pretrained=False, progress=True, **kwargs):
-    return _resnet('resnet18', BasicBlock, [2, 2, 2, 2], pretrained, progress, **kwargs)
 
-# added by @wct
-def ResNet18(nclasses, nf=20):
-    return ResNet4GEM(BasicBlock4GEM, [2, 2, 2, 2], nclasses, nf)
+def resnet18(pretrained=False, progress=True, **kwargs):
+    r"""ResNet-18 model from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    return _resnet('resnet18', BasicBlock, [2, 2, 2, 2], pretrained, progress,
+                   **kwargs)
 
 
 def resnet34(pretrained=False, progress=True, **kwargs):
-    return _resnet('resnet34', BasicBlock, [3, 4, 6, 3], pretrained, progress, **kwargs)
+    r"""ResNet-34 model from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    return _resnet('resnet34', BasicBlock, [3, 4, 6, 3], pretrained, progress,
+                   **kwargs)
 
 
 def resnet50(pretrained=False, progress=True, **kwargs):
+    r"""ResNet-50 model from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
     return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress,
                    **kwargs)
 
 
 def resnet101(pretrained=False, progress=True, **kwargs):
-    return _resnet('resnet101', Bottleneck, [3, 4, 23, 3], pretrained, progress, **kwargs)
+    r"""ResNet-101 model from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    return _resnet('resnet101', Bottleneck, [3, 4, 23, 3], pretrained, progress,
+                   **kwargs)
 
 
 def resnet152(pretrained=False, progress=True, **kwargs):
-    return _resnet('resnet152', Bottleneck, [3, 8, 36, 3], pretrained, progress, **kwargs)
-
-
-# added by @wct
-class BasicBlock4GEM(nn.Module):
-    expansion = 1
-    def __init__(self, in_planes, planes, stride=1):
-        super(BasicBlock4GEM, self).__init__()
-        self.conv1 = conv3x3(in_planes, planes, stride)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = conv3x3(planes, planes)
-        self.bn2 = nn.BatchNorm2d(planes)
-
-        self.shortcut = nn.Sequential()
-        if stride != 1 or in_planes != self.expansion * planes:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, self.expansion * planes, kernel_size=1,
-                          stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion * planes)
-            )
-
-    def forward(self, x):
-        out = relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
-        out += self.shortcut(x)
-        out = relu(out)
-        return out
-
-
-# added by @wct
-class ResNet4GEM(nn.Module):
-    def __init__(self, block, num_blocks, num_classes, nf):
-        super(ResNet4GEM, self).__init__()
-        self.in_planes = nf
-
-        self.conv1 = conv3x3(3, nf * 1)
-        self.bn1 = nn.BatchNorm2d(nf * 1)
-        self.layer1 = self._make_layer(block, nf * 1, num_blocks[0], stride=1)
-        self.layer2 = self._make_layer(block, nf * 2, num_blocks[1], stride=2)
-        self.layer3 = self._make_layer(block, nf * 4, num_blocks[2], stride=2)
-        self.layer4 = self._make_layer(block, nf * 8, num_blocks[3], stride=2)
-        self.linear = nn.Linear(nf * 8 * block.expansion, num_classes)
-
-    def _make_layer(self, block, planes, num_blocks, stride):
-        strides = [stride] + [1] * (num_blocks - 1)
-        layers = []
-        for stride in strides:
-            layers.append(block(self.in_planes, planes, stride))
-            self.in_planes = planes * block.expansion
-        return nn.Sequential(*layers)
-
-    def forward(self, x):
-        bsz = x.size(0)
-        out = relu(self.bn1(self.conv1(x.view(bsz, 3, 32, 32))))
-        out = self.layer1(out)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = self.layer4(out)
-        out = avg_pool2d(out, 4)
-        out = out.view(out.size(0), -1)
-        out = self.linear(out)
-        return out
+    r"""ResNet-152 model from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    return _resnet('resnet152', Bottleneck, [3, 8, 36, 3], pretrained, progress,
+                   **kwargs)

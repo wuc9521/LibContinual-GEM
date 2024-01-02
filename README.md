@@ -1,3 +1,11 @@
+# 临时数据集
+cifar10 & cifar100：
+https://box.nju.edu.cn/d/167ca1e2252c4d078bf7/
+
+# LibContinual
+A framework of Continual Learning
+
+
 # 代码结构
 1. data模块：'./core/data' 负责dataset的读取逻辑，关于datasets所需要的transform暂时没有写好，大家在复现各自方法的时候，需要什么transform可以直接修改./core/data/dataloader.py，后续会逐渐完善. <br>
 
@@ -51,12 +59,14 @@
 
 
 # 复现需要做的事
-1. 选定好一个方法后，在./config路径下新增一个.yaml文件用来满足需要的参数设置. 在./model/replay 或者 ./model/下新增一个`.py`文件用来实现训练算法.   <br>
+1. 选定好一个方法后，在./config路径下新增一个.yaml文件用来满足需要的参数设置. 在./model/replay 或者 ./model/下新增一个.py文件用来实现训练算法.   <br>
 
 2. 对于.py文件，需要实现几个函数: <br>
-  `def __init__()`:  用来初始化各自算法需要的对象
-  `def observe(self, data)`:  训练过程中，面对到来的一个batch的样本完成训练的损失计算以及参数更新，返回pred, acc, loss:  预测结果，准确率，损失<br>
-  `def inference(self, data)`:   推理过程中，面对到来的一个batch的样本，完成预测，返回pred, acc   <br>
-  `def before_task() / after_task()`:  可选，如果算法在每个任务开始前后有额外的操作，在这两个函数内完成   <br>
+  def __init__():  用来初始化各自算法需要的对象
+  def observe(self, data):  训练过程中，面对到来的一个batch的样本完成训练的损失计算以及参数更新，返回pred, acc, loss:  预测结果，准确率，损失    <br>
+  def inference(self, data):   推理过程中，面对到来的一个batch的样本，完成预测，返回pred, acc   <br>
+  def before_task() / after_task():  可选，如果算法在每个任务开始前后有额外的操作，在这两个函数内完成   <br>
 
-3. 训练过程中需要不同的buffer以及更新策略，可以自己在'./cire/model/buffer'下仿照`LinearBuffer`新增文件，并反馈给我.
+3. 训练过程中需要不同的buffer以及更新策略，可以自己在'./cire/model/buffer'下仿照LinearBuffer新增文件，并反馈给我.
+
+
