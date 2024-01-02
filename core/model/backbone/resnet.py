@@ -125,14 +125,15 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
-                 groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None,args=None):
+                 inplanes=64,groups=1, width_per_group=64, replace_stride_with_dilation=None,
+                 norm_layer=None,args=None): # modified by @lyl
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
 
-        self.inplanes = 64
+        # self.inplanes = 64
+        self.inplanes = inplanes # modified by @lyl
         self.dilation = 1
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
@@ -164,16 +165,18 @@ class ResNet(nn.Module):
                     nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
                 )
 
-
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
+        # modyfied by @lyl
+        self.layer1 = self._make_layer(block, self.inplanes*1, layers[0])
+        self.layer2 = self._make_layer(block, self.inplanes*2, layers[1], stride=2,
                                        dilate=replace_stride_with_dilation[0])
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
+        self.layer3 = self._make_layer(block, self.inplanes*4, layers[2], stride=2,
                                        dilate=replace_stride_with_dilation[1])
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
+        self.layer4 = self._make_layer(block, self.inplanes*8, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
+        # @lyl: GEM这里还有一个Linear层，没有AvgPool
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.out_dim = 512 * block.expansion
+        # self.out_dim = 512 * block.expansion
+        self.out_dim = self.inplanes*8 * block.expansion #added by @lyl
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -214,8 +217,9 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def _forward_impl(self, x):
-        # See note [TorchScript super()]
+        bsz = x.size(0) #added by @lyl
         x = self.conv1(x)  # [bs, 64, 32, 32]
+        # x = self.conv1(x.view(bsz,3,32,32)) # added by @lyl
 
         x_1 = self.layer1(x)  # [bs, 128, 32, 32]
         x_2 = self.layer2(x_1)  # [bs, 256, 16, 16]

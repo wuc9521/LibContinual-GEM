@@ -16,7 +16,6 @@ from torch.utils.data import DataLoader
 import numpy as np
 from core.model.buffer import LinearBuffer, hearding_update, random_update
 from core.utils import Logger, fmt_date_str, eval_tasks
-
 from core.data.dataset import Continuum
 
 class Trainer(object):

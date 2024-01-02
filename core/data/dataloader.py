@@ -3,7 +3,6 @@ import pickle
 from torchvision import transforms
 from .augments import *
 import os
-import pprint
 import numpy as np
 from .dataset import ContinualDatasets, Continuum
 

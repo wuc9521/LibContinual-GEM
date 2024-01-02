@@ -97,13 +97,7 @@ class Continuum:
                 task_p = [[task_idx, i] for i in sample_permutations[task_idx]] # 2500
                 random.shuffle(task_p) # 随机打乱列表的元素顺序
                 self.permutation += task_p
-
-
-        # print(sample_permutations)
-        # print(self.permutation)
-
         self.length = len(self.permutation)
-        #print(self.length)
         self.current = 0
 
     def __iter__(self): return self
