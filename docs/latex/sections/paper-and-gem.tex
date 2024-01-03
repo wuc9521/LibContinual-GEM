@@ -1,0 +1,135 @@
+% \newpage
+\section{论文和GEM模型分析}
+\subsection{监督学习的背景}
+一般来说, 监督学习的第一步是找到训练集 $D_{\text{tr}}=\{(\boldsymbol{x}_i, \boldsymbol{y}_i)\}_{i=1}^n$, 其中, $(\boldsymbol{x}_i,\boldsymbol{y}_i)$ 是由 ${\boldsymbol{x}_i}\in{\mathcal{X}}$ 和 $\boldsymbol{y}_i\in \mathcal{Y}$ 构成的样本, $\mathcal{X}$ 是特征向量集, $\mathcal{Y}$ 是目标向量集, $n$ 是样本数量. 绝大部分监督学习都假设, 训练集 $D_{\text{tr}}$ 是由一个固定的概率分布 $P$ 生成的, 即 $(x_i, y_i)\sim P$, 并且假设样本之间是独立同分布(independently distributed, iid) 的. 
+
+因此, 监督学习的目标就是, 通过训练集 $D_{\text{tr}}$ 来得到这样的一个函数, 或者叫模型 $f:\mathcal{X}\rightarrow \mathcal{Y}$, 使得模型 $f$ 能够对新的样本 $\boldsymbol{x}\in \mathcal{X}$ 给出预测值 $\boldsymbol{y}\in \mathcal{Y}$. 可以认为, $f$ 和 $P$ 是相互对应的, 也就是说 $f$ 是 $P$ 的一个估计.
+
+为了得到这样的 $f$, 监督学习通常采用经验风险最小化(Empirical Risk Minimization, ERM) 的方法. 经验风险被定义为
+\[
+    \hat{R}_{\text{emp}}(f)=\frac{1}{\|D_{\text{tr}}\|}\sum_{(\boldsymbol{x}_i,\boldsymbol{y}_i)\in D_{\text{tr}}} \ell(f(\boldsymbol{x}_i), \boldsymbol{y}_i),
+\]
+其中, $\ell:f(\mathcal{X})\times\mathcal{Y}\rightarrow \left[\right.0,+\infty\left.\right)$ 是损失函数, 能够衡量模型 $f$ 在给定的特征向量 $\boldsymbol{x}$ 上的预测值 $f({\boldsymbol{x}})$ 与真实值 $\boldsymbol{y}$ 的差距. 一般来说, 损失函数 $l$ 是非负的, 并且当且仅当 $f({\boldsymbol{x}})=\boldsymbol{y}$ 时取到最小值.
+
+然而, ERM有一个重要的假设是样本独立同分布, 但是在现实中这个假设往往是不成立的. 正如论文\cite{MCCLOSKEY1989109}中指出, 直接应用 ERM 会导致灾难性遗忘(catastrophic forgetting), 即在学习新任务时, 会大量\textbf{忘记}之前学习的任务.
+
+\subsection{持续学习}
+在这样的背景下, 持续学习(Continual Learning, CL) 的概念被提出. 持续学习的目标是, 在学习新任务时, 尽可能地保留之前学习的任务. 持续学习关注这样的数据连续体 
+\[
+    (\boldsymbol{x}_i, t_i, \boldsymbol{y}_i)\quad i\in \mathbb{N}^+,
+\]
+其中, $\boldsymbol{x_i}\in \mathcal{X}_{t_i}$ 是特征向量, $t_i\in \mathcal{T}$ 是任务标签, $\boldsymbol{y_i}\in \mathcal{Y}$ 是目标向量, $\mathcal{T}$ 是任务标签集. 我们一般认为上面说的数据连续体是局部独立同分布的, 也就是 
+\[
+    (\boldsymbol{x}_i, \boldsymbol{y}_i)\stackrel{\text{iid}}{\sim} P_{t_i}(X, Y)
+\]
+基于这样的假设, 我们的目标是找到一个函数 $f:\mathcal{X}\times \mathcal{T}\rightarrow \mathcal{Y}$, 使得对于任意的 $t\in \mathcal{T}$, $f$ 都能够在任务 $t$ 上给出一个好的预测.
+
+\subsection{本文目标}
+训练协议和评估指标 大多数关于学习一系列任务的文献 \cite{rusu2016progressive, fernando2017pathnet, kirkpatrick2017overcoming, rebuffiICaRLIncrementalClassifier2017} 都使用以下训练协议和评估指标. 他们假设
+\begin{enumerate}[itemsep=-1.2mm,topsep=0pt]
+    \item 任务数量很少;
+    \item 每个任务的示例数量很大;
+    \item 学习者对每项任务的示例进行多次遍历;
+    \item 报告的唯一指标是所有任务的平均性能.
+\end{enumerate}
+
+\noindent 相比之下, 本文则采用"更像人类"的训练协议和评估指标, 即:
+\begin{enumerate}[itemsep=-1.2mm,topsep=0pt]
+    \item 任务数量很大;
+    \item 每个任务的示例数量很少;
+    \item 学习者仅观察一次有关每项任务的示例;
+    \item 同时需要衡量转移和遗忘的指标.
+\end{enumerate}
+
+\noindent 更具体地说, 假设总共有$T$个任务, 构建矩阵 $R\in \mathbb{R}^{T\times T}$, 其中 $R_{i,j}\in\{0,1\}$ 表示在学习完第 $t_i\leq T$ 个任务的最后一个样本之后, 预测第$t_j\leq T$个任务的正确性. $\bar{b}$ 表示每个任务测试准确率的随机初始值. 我们会评估以下指标:
+\begin{enumerate}[label={},wide,labelwidth=!,itemindent=!,labelindent=0pt]
+    \item \textbf{平均准确率} (average accuracy, ACC), 即所有任务的平均准确率.
+    \[
+        \text{ACC}:=\frac{1}{T}\sum_{i=1}^T R_{T,i}
+    \]
+    \item \textbf{向后迁移} (backward transfer, BWT),即学习任务 $t$ 对前一个任务 $k\prec t$ 的性能的影响. 一方面,当学习某些任务 $t$ 提高了某些先前任务 $k$ 的性能时, 存在正向后迁移. 另一方面,当学习某些任务 $t$ 会降低某些先前任务 $k$ 的性能时,就会存在负向后迁移. 大的负向后转移也称为\textit{灾难性遗忘}(catastrophic forgetting).
+    \[
+        \text{BWT}:=\frac{1}{T-1}\sum_{i=1}^{T-1} R_{T, i} - R_{i, i}
+    \]
+    \item \textbf{前向迁移} (forward transfer, FWT), 即学习任务 $t$ 对未来任务 $k\succ t$ 的性能的影响. 特别是, 当模型能够执行"零样本"学习时, 可能会通过利用任务描述符中可用的结构来实现正向前向迁移.
+    \[
+        \text{FWT}:=\frac{1}{T-1}\sum_{i=2}^{T} R_{i-1, i} - \bar{b_i}
+    \]
+\end{enumerate}
+
+
+
+
+
+\subsection{GEM模型}
+在本节中, 本文提出了一种新的持续学习模型梯度情景记忆 (Gradient Episodic Memory, GEM). GEM 的主要特征是情景记忆 $\mathcal{M}_t$, 它存储任务 $t$ 中观察到的样本的子集. 为了简单起见, 作者假设整数任务描述符, 并使用它们来索引情景内存. 当使用整数任务描述符时, 不能期望显着的正向传递 (零样本学习). 相反, 本文专注于通过有效使用情景记忆来最大限度地减少负向后转移(灾难性遗忘).
+
+在实践中,学习者的总预算是 $M$ 个记忆位置. 如果总任务数 $T$ 已知,我们可以为每个任务分配 $m = M/T$ 的记忆容量. 相反,如果任务总数 $T$ 未知,我们可以在观察新任务时逐渐减小 $m$ 的值\cite{rebuffiICaRLIncrementalClassifier2017}. 为了简单起见, 作者假设内存中填充了每个任务的最后 $m$ 个示例, 尽管可以采用更好的内存更新策略 (例如为每个任务构建一个核心集). 接下来, 考虑由 $\theta \in \mathbb{R}^p$ 参数化的预测变量 $f_\theta$, 并将第 $k$ 个任务的\textit{记忆损失}定义为:
+\[
+    \ell\left(f_{\theta}, \mathcal{M}_{k}\right)=\frac{1}{\|\mathcal{M}_{k}\|} \sum_{\left(\boldsymbol{x}_{i}, k, \boldsymbol{y}_{i}\right) \in \mathcal{M}_{k}} \ell\left(f_{\theta}\left(\boldsymbol{x}_{i}, k\right), \boldsymbol{y}_{i}\right)
+\]
+GEM的训练个评估伪代码如算法~\ref{alg:gem:train}所示. 与此前的持续学习方法相比, GEM的具体策略如下:
+\begin{enumerate}[label={},wide,labelwidth=!,itemindent=!,labelindent=0pt]
+    \item \textbf{\textit{调整优化策略}}: 我们使用记忆损失来调整经验风险, 使其包括对过去任务的记忆损失. 因此, 当观察到一个三元组$(\boldsymbol{x}, t, \boldsymbol{y})$ 时, GEM模型希望能够实现\textbf{学习最新的任务之后, 对于之前学习过的每一个任务, 记忆损失都不能再增加, 并在此基础上尽可能减少现有的记忆损失}. 形式化地, GEM的目标是在满足
+    \[
+        \forall k < t: \ell(f_{\theta}, \mathcal{M}_{k}) < \ell(f_{\theta}^{t-1}, \mathcal{M}_{k}) 
+    \]
+    的条件下, 最小化
+    \[
+        \ell\left(f_{\theta}(\boldsymbol{x}, t), \boldsymbol{y}\right)
+    \]
+    其中, $f_\theta^{t-1}$ 是在学习完任务 $t-1$ 后的模型.
+    \item \textbf{\textit{记忆约束}}: 为了满足上述条件, 我们需要在每次更新参数 $\theta$ 时, 通过\textbf{记忆约束}来确保记忆损失不会增加. 具体来说, 我们希望在每次更新参数 $\theta$ 时, 都能够找到一个梯度 $g$, 使得:
+    \[
+        \forall k<t:\left\langle g, g_{k}\right\rangle:=\left\langle\frac{\partial \ell\left(f_{\theta}(\boldsymbol{x}, t), \boldsymbol{y}\right)}{\partial \theta}, \frac{\partial \ell\left(f_{\theta}, \mathcal{M}_{k}\right)}{\partial \theta}\right\rangle \geq 0
+    \]
+    \noindent 直观上就是说, 在更新参数 $\theta$ 时, 我们希望学习最新的任务之后的损失函数和此前的损失函数具有相同的变化趋势. 不难发现这是一种更强的限制.
+    \item \textbf{\textit{梯度投影}}: 不难发现, 上面的约束并不总是能满足的, 尤其是当相邻的两组任务之间的冲突很大时. 如果不能找到这样的梯度 $g$, 我们就将 $g$ 投影到一个和它最接近的, 并且满足记忆约束要求的梯度 $\tilde{g}$, 使得在
+    \[
+        \forall k < t: \left\langle\tilde{g}, g_{k}\right\rangle \geq 0
+    \]
+    的前提下, 调整 $\tilde{g}$ 的值, 使得$\|g-\tilde{g}\|$ 的值最小. 接下来使用二次规划来求解这个问题. 
+    % 下面要写伪代码
+    \begin{algorithm}
+        \caption{在 \emph{有序的} 数据连续体上训练GEM模型}
+        \label{alg:gem:train}
+        \begin{minipage}[t]{.5\linewidth}
+        \begin{algorithmic}
+        \small
+        \Procedure{Train}{$f_\theta, \mbox{Continuum}_{\text{train}}, \mbox{Continuum}_{\text{test}}$} 
+            \State $\mathcal{M}_t \leftarrow \lbrace\rbrace$ for all $t = 1, \ldots, T$.
+            \State $R \leftarrow 0 \in \mathbb{R}^{T\times T}$. 
+            \For{$t = 1, \ldots, T$}:
+            \For{$(\boldsymbol{x}, \boldsymbol{y})$ in $\mbox{Continuum}_{\text{train}}(t)$}
+                \State $\mathcal{M}_t \leftarrow \mathcal{M}_t \cup (\boldsymbol{x},\boldsymbol{y})$
+                \State $g \leftarrow \nabla_\theta \, \ell (f_\theta(\boldsymbol{x}, t), \boldsymbol{y})$
+                \State $g_{k} \leftarrow \nabla_\theta \, \ell (f_\theta, \mathcal{M}_{k})$ for all
+                    $k < t$ 
+                \State $\tilde{g} \leftarrow$ \textsc{Project}($g, g_1, \ldots, g_{t-1}$)
+                \State $\theta \leftarrow \theta - \alpha \tilde{g}$.
+            \EndFor
+            \State $R_{t,:} \leftarrow \textsc{Evaluate}(f_\theta, \text{Continuum}_{\text{test}})$
+            \EndFor
+            \State \textbf{return} $f_\theta$, R
+        \EndProcedure
+        \end{algorithmic}
+        \end{minipage}
+        \hfill
+        \begin{minipage}[t]{.45\linewidth}
+        \begin{algorithmic}
+        \small
+        \Procedure{Evaluate}{$f_\theta, \mbox{Continuum}$} 
+            \State $r \leftarrow 0 \in \mathbb{R}^T$
+            \For{$k = 1, \ldots, T$}
+            \State $r_k \leftarrow 0$
+            \For{$(x,y)$ in $\mbox{Continuum}(k)$} 
+                \State $r_k \leftarrow r_k +  \mbox{accuracy}(f_\theta(\boldsymbol{x}, k), \boldsymbol{y})$
+            \EndFor
+            \State $r_k \leftarrow r_k \,/\, \text{len}(\text{Continuum}(k))$
+            \EndFor
+            \State \textbf{return} $r$
+        \EndProcedure
+        \end{algorithmic}
+        \end{minipage}
+    \end{algorithm}
+\end{enumerate}

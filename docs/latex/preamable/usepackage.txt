@@ -1,0 +1,47 @@
+\usepackage{sectsty}
+\usepackage[UTF8]{ctex}
+\usepackage{standalone}
+\usepackage{subcaption}
+\usepackage[top=3cm, bottom=4cm, left=3.5cm, right=3.5cm]{geometry}
+\usepackage{amsmath, amsthm, amsfonts, amssymb, amscd, fancyhdr,  color, comment, graphicx, environ}
+\usepackage{float}
+\usepackage{lastpage}
+\usepackage[dvipsnames,svgnames]{xcolor}
+\usepackage[framemethod=TikZ]{mdframed}
+\usepackage{enumerate}
+\usepackage[shortlabels]{enumitem}
+\usepackage{fancyhdr}
+\usepackage{indentfirst}
+\usepackage{listings}
+\usepackage{thmtools}
+\usepackage{shadethm}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{tikz}
+\usepackage{lipsum}
+\usepackage[most]{tcolorbox}
+\usepackage{times}
+\usepackage{longtable}
+\usepackage{makecell}
+\usepackage{fontspec}
+\usepackage{colortbl}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{mathrsfs}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{booktabs}  % 用来改变\hline的宽度
+\usepackage[
+    backend=bibtex, 
+    pagetracker=page, 
+    citetracker=true, 
+    sorting=none,
+    style=numeric
+]{biblatex}
+\usepackage[bottom, perpage]{footmisc}
+\usepackage{courier}
+\graphicspath{{figures/}}
+
+\usepackage{dirtree} % 目录结构树

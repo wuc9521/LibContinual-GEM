@@ -1,0 +1,2 @@
+(LCL) wuchentian@YCY C:\Users\wuchentian>python -V
+Python 3.10.13

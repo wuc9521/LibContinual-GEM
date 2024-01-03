@@ -1,0 +1,44 @@
+ README.lar.md                            | 141 ----------------
+ README.lyl.md                            |  59 -------
+ README.md                                |  22 ++-
+ README.wct.md                            |  25 ---
+ README.ycy.md                            |  34 ----
+ config/backbones/resnet18.yaml           |   7 -
+ config/finetune.yaml                     |   2 +-
+ config/gem.yaml                          |  60 -------
+ config/headers/device.yaml               |   2 +-
+ config/icarl.yaml                        |   4 +-
+ config/lucir.yaml                        |  25 +--
+ config/lucir2.yaml                       |  63 -------
+ config/lwf.yaml                          |   4 +-
+ core/data/__init__.py                    |   2 +-
+ core/data/augments.py                    |  65 ++++++-
+ core/data/cutout.py                      |   5 +
+ core/data/dataloader.py                  |  99 ++---------
+ core/data/dataset.py                     |  89 ++--------
+ core/model/__init__.py                   |   2 +-
+ core/model/backbone/__init__.py          |   2 +-
+ core/model/backbone/resnet.py            | 161 +++++++-----------
+ core/model/buffer/__init__.py            |   1 -
+ core/model/buffer/linearbuffer.py        |   8 +-
+ core/model/buffer/linearherdingbuffer.py |   3 +
+ core/model/buffer/ringbuffer.py          |  11 --
+ core/model/buffer/update.py              |   3 +-
+ core/model/replay/__init__.py            |   3 +-
+ core/model/replay/common.py              |  80 ---------
+ core/model/replay/ewc.py                 |   0
+ core/model/replay/finetune.py            |  25 +--
+ core/model/replay/gem.py                 | 195 ---------------------
+ core/model/replay/icarl.py               |  82 +++++----
+ core/model/replay/lucir.py               |  19 ++-
+ core/model/replay/lwf.py                 |   3 +
+ core/result.txt                          |   0
+ core/test.py                             |  37 ----
+ core/trainer.py                          | 279 +++++++++++++------------------
+ core/utils/logger.py                     |   2 +-
+ core/utils/metrics.py                    |  56 -------
+ core/utils/utils.py                      |  64 ++-----
+ config/ewc.yaml => log/.gitkeep          |   0
+ log/log                                  |   0
+ run_trainer.py                           |   8 +-
+ 44 files changed, 432 insertions(+), 1327 deletions(-)
