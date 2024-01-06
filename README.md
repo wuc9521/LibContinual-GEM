@@ -16,6 +16,6 @@ Coursework (GEM, LCL8) of Introduction to Machine Learning, Software Institute, 
 - Our tex repository: https://www.overleaf.com/7663437964wvrhnvxvjqwr#33656a
 
 ## About the Code
-文章核心的关键点在报告的2.节, 代码的细节在报告的3.1.~3.3.节.
+Key points of the paper is in section 2. in the report, details about the code is in section 3.1.~3.3. in the report.
 
 <img src="https://naturalifica.oss-cn-nanjing.aliyuncs.com/~/Users/wuchentian/SoloLearning/Blog/source/imgs/image-20240102205737165.png" alt="image-20240102205737165" style="zoom:50%;" />
