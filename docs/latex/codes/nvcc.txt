@@ -1,0 +1,6 @@
+(LCL) wuchentian@YCY C:\Users\wuchentian>nvcc -V
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2023 NVIDIA Corporation
+Built on Tue_Aug_15_22:09:35_Pacific_Daylight_Time_2023
+Cuda compilation tools, release 12.2, V12.2.140
+Build cuda_12.2.r12.2/compiler.33191640_0
