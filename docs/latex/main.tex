@@ -1,0 +1,23 @@
+\documentclass[10pt, a4paper]{article}
+\input{preamable/usepackage.txt}
+\usepackage{silence} 
+\setmainfont{Times New Roman}
+\WarningFilter{latex}{You have requested package}
+\WarningFilter{latex}{You should put}
+\usepackage{styles/setup}
+
+\addbibresource{main.bib}
+
+
+\begin{document}
+    \input{preamable/titlepage.tex}
+    \newpage\tableofcontents
+    \input{sections/introduction.tex}
+    \input{sections/paper-and-gem.tex}
+    \input{sections/lib-continual-gem.tex}
+    \input{sections/summary.tex}
+    \input{sections/appendix.tex}
+    \pagebreak
+    \nocite{*}
+    \printbibliography[title={参考文献}]
+\end{document}

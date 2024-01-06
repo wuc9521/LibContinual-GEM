@@ -1,0 +1,15 @@
+\newpage
+\section{项目简介}
+我们选择的论文\cite{davidlopez-pazGradientEpisodicMemory2022}提出了Gradient Episodic Memory (GEM)模型, 用于解决连续学习中的遗忘问题. 该模型在每次学习新任务时, 会将新任务的梯度与之前任务的梯度进行比较, 并将新任务的梯度投影到之前任务的梯度上, 从而保证之前任务的梯度不会被遗忘.
+
+为了完成这个项目, 我们开展了如下的几个步骤:
+\begin{enumerate}[itemsep=-1mm]
+    \item 阅读论文, 理解论文的内容
+    \item 运行代码
+    \item 阅读论文的代码, 结合代码理解论文的实现
+    \item 阅读 LibContinual 的代码
+    \item 将 GEM 模型结合到 LibContinual 中
+    \item 调试, 改进
+\end{enumerate}
+我们的代码在 \href{https://git.nju.edu.cn/MLLab-2023/LibContinual/}{NJU GitLab仓库} 中给出.
+本次报告中出现的所有符号在附录\ref{sec:appendix-symbol}中给出.
